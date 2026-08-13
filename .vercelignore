@@ -1,14 +1,38 @@
-# Vercel Deployment Ignore
+# Vercel Deployment Exclusions
 .env
 .env.local
 .env.*.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Next.js & Node artifacts
+temp-next-app/
+node_modules/
+.next/
+package-lock.json
+
+# Heavy dataset files
+*.csv
+data/*.csv
+*.parquet
+*.zip
+*.tar.gz
+
+# Python cache & logs
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+*.log
+
+# Git & Agent artifacts
 .git/
 .github/
-model/*.joblib
-node_modules/
-*.log
+.agents/
+brain/
+scratch/

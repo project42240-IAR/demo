@@ -1,21 +1,11 @@
-Flask==3.0.3
-scikit-learn==1.5.1
-pandas==2.2.2
-numpy==1.26.4
-joblib==1.4.2
-
-# scraper.py dependencies
+Flask>=3.0.0
+scikit-learn>=1.5.0
+pandas>=2.2.0
+numpy>=1.26.0
+joblib>=1.4.0
+supabase>=2.0.0
+cryptography>=42.0.0
+python-dotenv>=1.0.0
 requests>=2.32.0
 beautifulsoup4>=4.12.0
-lxml>=5.2.0
-# Optional: install playwright separately for JS-heavy pages
-# pip install playwright && playwright install chromium
-
-# database.py dependencies
-supabase>=2.0
-cryptography>=42.0
-python-dotenv>=1.0
-
-# blockchain_logger.py dependencies
-web3>=6.15
-py-solc-x>=0.4.0          # only needed for --deploy; downloads solc on first run
+web3>=6.15.0
