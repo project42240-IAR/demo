@@ -112,6 +112,41 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // --------------------------------------------------------------------------- //
+// Direct REST API Access
+// --------------------------------------------------------------------------- //
+
+export const SUPABASE_REST_URL =
+  getEnvVar('NEXT_PUBLIC_SUPABASE_REST_URL') ||
+  getEnvVar('SUPABASE_REST_URL') ||
+  `${supabaseUrl || 'https://brwibpgkzlvunyxejhrh.supabase.co'}/rest/v1`;
+
+/**
+ * Perform a direct HTTP request to Supabase PostgREST endpoints (e.g. fetchRest('cases'))
+ */
+export async function fetchRest<T = any>(
+  endpoint: string = '',
+  options: RequestInit = {}
+): Promise<T> {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  const url = cleanEndpoint ? `${SUPABASE_REST_URL.replace(/\/$/, '')}/${cleanEndpoint}` : SUPABASE_REST_URL;
+  
+  const headers = {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${supabaseSecretKey || supabaseAnonKey}`,
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation',
+    ...options.headers,
+  };
+
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Supabase REST Error (${response.status}): ${errorText}`);
+  }
+  return response.json();
+}
+
+// --------------------------------------------------------------------------- //
 // Client Instances
 // --------------------------------------------------------------------------- //
 

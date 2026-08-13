@@ -128,6 +128,31 @@ def get_db():
     return get_client()
 
 
+def get_rest_url(endpoint: str = "") -> str:
+    """Return direct REST API URL for Supabase (e.g., https://brwibpgkzlvunyxejhrh.supabase.co/rest/v1/)."""
+    base_url = os.environ.get("SUPABASE_REST_URL") or f"{os.environ.get('SUPABASE_URL', 'https://brwibpgkzlvunyxejhrh.supabase.co').rstrip('/')}/rest/v1/"
+    path = endpoint.lstrip("/")
+    return f"{base_url.rstrip('/')}/{path}" if path else base_url
+
+
+def execute_rest_query(endpoint: str, method: str = "GET", params: dict | None = None, json_payload: dict | None = None) -> Any:
+    """
+    Perform direct HTTP REST query against Supabase PostgREST API (e.g. /rest/v1/cases).
+    """
+    import requests
+    url = get_rest_url(endpoint)
+    key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    response = requests.request(method, url, headers=headers, params=params, json=json_payload)
+    response.raise_for_status()
+    return response.json() if response.text else {}
+
+
 # --------------------------------------------------------------------------- #
 # Index / Connection initialisation
 # --------------------------------------------------------------------------- #
