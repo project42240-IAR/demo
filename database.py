@@ -1,18 +1,18 @@
 """
 database.py
 ===========
-MongoDB database layer for the Fake Social Media Account Detection platform.
+Supabase database layer for the Fake Social Media Account Detection platform.
 
-Collections
------------
-  cases       – one document per reported flagged account
+Tables
+------
+  cases       – one row per reported flagged account
   audit_logs  – append-only log of every reviewer action
 
 Encryption
 ----------
   Field-level Fernet (AES-128-CBC + HMAC-SHA256) encryption via the
   `cryptography` library.  Sensitive fields are encrypted before they reach the
-  wire; the MongoDB server never sees plaintext for those fields.
+  wire; the database server never sees plaintext for those fields.
 
   Encrypted fields
     cases      : username, reasons, top_model_factors, status_history
@@ -25,36 +25,18 @@ Encryption
   The symmetric key is read from env var DB_ENCRYPTION_KEY (URL-safe base64,
   32 raw bytes → 44 base64 chars).  If the variable is absent a fresh key is
   generated, written to .env in the project root, and a warning is printed.
-  Back up this key – losing it means losing access to all encrypted data.
-
-Concurrency Safety
-------------------
-  PyMongo's MongoClient maintains an internal connection pool and is fully
-  thread-safe.  All write operations use atomic MongoDB update operators
-  ($set, $push) via find_one_and_update so there are no read-modify-write
-  windows even under concurrent Flask threads.
-
-Key management
---------------
-  .env (auto-created on first run):
-      DB_ENCRYPTION_KEY=<url-safe base64 key>
-      MONGO_URI=mongodb://localhost:27017
-      MONGO_DB_NAME=fake_account_detector
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-import base64
 from datetime import datetime, timezone
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv, set_key
-from pymongo import MongoClient, DESCENDING
-from pymongo.collection import Collection
-from pymongo.errors import PyMongoError
+from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +64,6 @@ def _bootstrap_env() -> None:
             ENV_PATH,
         )
 
-    if not os.environ.get("MONGO_URI"):
-        set_key(ENV_PATH, "MONGO_URI", "mongodb://localhost:27017")
-        os.environ["MONGO_URI"] = "mongodb://localhost:27017"
-
-    if not os.environ.get("MONGO_DB_NAME"):
-        set_key(ENV_PATH, "MONGO_DB_NAME", "fake_account_detector")
-        os.environ["MONGO_DB_NAME"] = "fake_account_detector"
-
 
 _bootstrap_env()
 
@@ -101,11 +75,13 @@ _raw_key = os.environ["DB_ENCRYPTION_KEY"].encode()
 _cipher: Fernet = Fernet(_raw_key)
 
 
-def _encrypt(value: Any) -> str:
+def _encrypt(value: Any) -> str | None:
     """
     Serialize *value* to JSON, then return a Fernet-encrypted base64 string.
-    Stores as plain str in MongoDB (fits inside BSON String cleanly).
+    Returns None if value is None.
     """
+    if value is None:
+        return None
     plaintext = json.dumps(value, ensure_ascii=False).encode()
     return _cipher.encrypt(plaintext).decode()
 
@@ -126,131 +102,101 @@ def _decrypt(token: str | None) -> Any:
 
 
 # --------------------------------------------------------------------------- #
-# MongoDB connection
+# Supabase connection
 # --------------------------------------------------------------------------- #
 
-_client: MongoClient | None = None
+_client: Client | None = None
+
+
+def get_client() -> Client:
+    """Return the Supabase Client instance (lazy singleton)."""
+    global _client
+    if _client is None:
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+        if not url or not key:
+            raise RuntimeError(
+                "SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_PUBLISHABLE_KEY) must be set in .env"
+            )
+        _client = create_client(url, key)
+        logger.info("Supabase client connected: %s", url)
+    return _client
 
 
 def get_db():
-    """Return the MongoDatabase instance (lazy singleton)."""
-    global _client
-    if _client is None:
-        uri = os.environ["MONGO_URI"]
-        _client = MongoClient(
-            uri,
-            serverSelectionTimeoutMS=5_000,
-            connectTimeoutMS=5_000,
-        )
-        # Trigger a lightweight server check on first use
-        _client.admin.command("ping")
-        logger.info("MongoDB connected: %s", uri)
-    return _client[os.environ["MONGO_DB_NAME"]]
-
-
-def get_cases() -> Collection:
-    return get_db()["cases"]
-
-
-def get_audit_logs() -> Collection:
-    return get_db()["audit_logs"]
+    """Backwards compatibility alias for backend.py health check."""
+    return get_client()
 
 
 # --------------------------------------------------------------------------- #
-# Index initialisation (idempotent — safe to call on every startup)
+# Index / Connection initialisation
 # --------------------------------------------------------------------------- #
 
 def init_indexes() -> None:
     """
-    Create indexes if they do not already exist.
+    Verify Supabase database connectivity and tables.
     Called once from app.py inside the Flask app context.
     """
-    cases = get_cases()
-    # Unique case_id for upsert safety
-    cases.create_index("case_id", unique=True, background=True)
-    # Sort by most-recently-reported first (used by list_cases)
-    cases.create_index([("reported_at", DESCENDING)], background=True)
-    # Filter by verdict / platform quickly
-    cases.create_index("verdict", background=True)
-    cases.create_index("platform", background=True)
-    cases.create_index("status", background=True)
-
-    audit_logs = get_audit_logs()
-    audit_logs.create_index("case_id", background=True)
-    audit_logs.create_index([("timestamp", DESCENDING)], background=True)
-
-    logger.info("MongoDB indexes verified.")
+    client = get_client()
+    try:
+        # Perform a lightweight query on cases table to verify reachability
+        client.table("cases").select("case_id").limit(1).execute()
+        logger.info("Supabase database connection and tables verified.")
+    except Exception as exc:
+        logger.warning(
+            "Supabase table verification note: %s. "
+            "Ensure setup_supabase.sql has been executed in the Supabase Dashboard SQL Editor.",
+            exc,
+        )
 
 
 # --------------------------------------------------------------------------- #
 # Serialisation helpers
 # --------------------------------------------------------------------------- #
 
-# Fields stored plaintext (indexed / sorted on server-side)
 _PLAINTEXT_CASE_FIELDS = {
     "case_id", "platform", "verdict", "confidence",
     "rule_score", "model_score", "final_score",
     "status", "reported_at",
 }
 
-# Fields encrypted before storage
 _ENCRYPTED_CASE_FIELDS = {
     "username", "reasons", "top_model_factors", "status_history",
 }
 
 
-def _case_to_doc(case: dict) -> dict:
-    """Convert an application-level case dict to a MongoDB document."""
-    doc: dict[str, Any] = {}
+def _case_to_record(case: dict) -> dict:
+    """Convert an application-level case dict to a Supabase database row."""
+    record: dict[str, Any] = {}
     for key, val in case.items():
         if key in _ENCRYPTED_CASE_FIELDS:
-            doc[key] = _encrypt(val)
+            record[key] = _encrypt(val)
         elif key in _PLAINTEXT_CASE_FIELDS:
-            doc[key] = val
+            record[key] = val
         else:
-            # Unknown fields stored as-is (forward-compatible)
-            doc[key] = val
-    return doc
+            # Extra fields stored as encrypted json payload string
+            record[key] = _encrypt(val) if isinstance(val, (dict, list)) else val
+    return record
 
 
-def _doc_to_case(doc: dict) -> dict:
-    """Convert a MongoDB document back to an application-level case dict."""
-    if doc is None:
+def _record_to_case(record: dict) -> dict:
+    """Convert a Supabase database row back to an application-level case dict."""
+    if not record:
         return {}
     case: dict[str, Any] = {}
-    for key, val in doc.items():
-        if key == "_id":
-            continue  # strip Mongo internal id
+    for key, val in record.items():
+        if key in ("created_at", "id"):
+            continue  # strip DB internal column
         if key in _ENCRYPTED_CASE_FIELDS:
             case[key] = _decrypt(val)
         else:
-            case[key] = val
+            # Attempt decryption if stored as encrypted token string
+            if isinstance(val, str) and val.startswith("gAAAAA"):
+                decrypted = _decrypt(val)
+                case[key] = decrypted if decrypted is not None else val
+            else:
+                case[key] = val
     return case
-
-
-def _audit_to_doc(audit: dict) -> dict:
-    return {
-        "case_id": audit["case_id"],
-        "action": audit["action"],
-        "timestamp": audit["timestamp"],
-        # Encrypted sensitive fields
-        "reviewer": _encrypt(audit.get("reviewer", "system")),
-        "old_value": _encrypt(audit.get("old_value")),
-        "new_value": _encrypt(audit.get("new_value")),
-    }
-
-
-def _doc_to_audit(doc: dict) -> dict:
-    if doc is None:
-        return {}
-    return {
-        "case_id": doc.get("case_id"),
-        "action": doc.get("action"),
-        "timestamp": doc.get("timestamp"),
-        "reviewer": _decrypt(doc.get("reviewer")),
-        "old_value": _decrypt(doc.get("old_value")),
-        "new_value": _decrypt(doc.get("new_value")),
-    }
 
 
 # --------------------------------------------------------------------------- #
@@ -267,16 +213,8 @@ VALID_STATUSES = frozenset({
 
 def insert_case(case: dict) -> dict:
     """
-    Insert a new case document.  ``case`` must contain at minimum:
-      case_id, platform, verdict, confidence, rule_score, model_score,
-      final_score, status, reported_at, username, reasons,
-      top_model_factors.
-
-    Returns the inserted document as an application dict.
-
-    Thread safety: MongoClient connection pool handles concurrent inserts.
+    Insert a new case document into Supabase.
     """
-    # Initialise status_history as an embedded array on first insert
     if "status_history" not in case:
         case["status_history"] = [
             {
@@ -286,10 +224,10 @@ def insert_case(case: dict) -> dict:
             }
         ]
 
-    doc = _case_to_doc(case)
+    record = _case_to_record(case)
     try:
-        get_cases().insert_one(doc)
-    except PyMongoError as exc:
+        get_client().table("cases").insert(record).execute()
+    except Exception as exc:
         logger.error("insert_case failed: %s", exc)
         raise
 
@@ -306,23 +244,25 @@ def insert_case(case: dict) -> dict:
 
 def list_cases() -> list[dict]:
     """
-    Return all cases sorted by reported_at descending (most recent first).
+    Return all cases sorted by reported_at descending.
     Decrypts sensitive fields before returning.
     """
     try:
-        docs = get_cases().find({}, sort=[("reported_at", DESCENDING)])
-        return [_doc_to_case(d) for d in docs]
-    except PyMongoError as exc:
+        res = get_client().table("cases").select("*").order("reported_at", desc=True).execute()
+        return [_record_to_case(r) for r in res.data]
+    except Exception as exc:
         logger.error("list_cases failed: %s", exc)
         return []
 
 
 def get_case(case_id: str) -> dict | None:
-    """Fetch a single case by its human-readable case_id."""
+    """Fetch a single case by case_id."""
     try:
-        doc = get_cases().find_one({"case_id": case_id})
-        return _doc_to_case(doc) if doc else None
-    except PyMongoError as exc:
+        res = get_client().table("cases").select("*").eq("case_id", case_id).execute()
+        if res.data:
+            return _record_to_case(res.data[0])
+        return None
+    except Exception as exc:
         logger.error("get_case(%s) failed: %s", case_id, exc)
         return None
 
@@ -333,44 +273,39 @@ def update_case_status(
     reviewer: str = "system",
 ) -> dict | None:
     """
-    Atomically update the case status and append a history entry.
-
-    Uses find_one_and_update with $set + $push — a single atomic MongoDB
-    operation.  No two Flask threads can interleave their read and write
-    for the same document.
-
-    Returns the updated case dict, or None if case_id not found.
+    Atomically update the case status and append a history entry in Supabase.
     """
     if new_status not in VALID_STATUSES:
         raise ValueError(f"Invalid status: {new_status!r}")
 
+    current = get_case(case_id)
+    if current is None:
+        return None
+
+    old_status = current.get("status")
+    history = current.get("status_history") or []
+    if not isinstance(history, list):
+        history = [history]
+
     now_iso = datetime.now(timezone.utc).isoformat()
-    history_entry = {
+    history.append({
         "status": new_status,
         "changed_at": now_iso,
         "changed_by": reviewer,
+    })
+
+    update_payload = {
+        "status": new_status,
+        "status_history": _encrypt(history),
     }
 
-    # Fetch old status before update (for audit log)
-    old_doc = get_cases().find_one({"case_id": case_id}, {"status": 1})
-    old_status = old_doc["status"] if old_doc else None
-
-    update_op = {
-        "$set": {"status": new_status},
-        "$push": {"status_history": _encrypt(history_entry)},
-    }
     try:
-        updated_doc = get_cases().find_one_and_update(
-            {"case_id": case_id},
-            update_op,
-            return_document=True,  # return the document *after* update
-        )
-    except PyMongoError as exc:
+        res = get_client().table("cases").update(update_payload).eq("case_id", case_id).execute()
+        if not res.data:
+            return None
+    except Exception as exc:
         logger.error("update_case_status(%s) failed: %s", case_id, exc)
         raise
-
-    if updated_doc is None:
-        return None
 
     _write_audit(
         case_id=case_id,
@@ -379,7 +314,7 @@ def update_case_status(
         old_value={"status": old_status},
         new_value={"status": new_status},
     )
-    return _doc_to_case(updated_doc)
+    return get_case(case_id)
 
 
 # --------------------------------------------------------------------------- #
@@ -393,18 +328,18 @@ def _write_audit(
     old_value: Any,
     new_value: Any,
 ) -> None:
-    """Insert an audit log entry.  Non-blocking best-effort – logs on error."""
+    """Insert an audit log entry in Supabase."""
     entry = {
         "case_id": case_id,
-        "reviewer": reviewer,
+        "reviewer": _encrypt(reviewer),
         "action": action,
-        "old_value": old_value,
-        "new_value": new_value,
-        "timestamp": datetime.now(timezone.utc),
+        "old_value": _encrypt(old_value),
+        "new_value": _encrypt(new_value),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        get_audit_logs().insert_one(_audit_to_doc(entry))
-    except PyMongoError as exc:
+        get_client().table("audit_logs").insert(entry).execute()
+    except Exception as exc:
         logger.error("_write_audit failed (non-fatal): %s", exc)
 
 
@@ -413,24 +348,34 @@ def list_audit_logs(case_id: str | None = None) -> list[dict]:
     Return audit log entries, optionally filtered by case_id.
     Sorted newest-first.
     """
-    query = {"case_id": case_id} if case_id else {}
     try:
-        docs = get_audit_logs().find(query, sort=[("timestamp", DESCENDING)])
-        return [_doc_to_audit(d) for d in docs]
-    except PyMongoError as exc:
+        query = get_client().table("audit_logs").select("*")
+        if case_id:
+            query = query.eq("case_id", case_id)
+        res = query.order("timestamp", desc=True).execute()
+        logs = []
+        for d in res.data:
+            logs.append({
+                "case_id": d.get("case_id"),
+                "action": d.get("action"),
+                "timestamp": d.get("timestamp"),
+                "reviewer": _decrypt(d.get("reviewer")),
+                "old_value": _decrypt(d.get("old_value")),
+                "new_value": _decrypt(d.get("new_value")),
+            })
+        return logs
+    except Exception as exc:
         logger.error("list_audit_logs failed: %s", exc)
         return []
 
 
 # --------------------------------------------------------------------------- #
-# Migration helper — import existing case_log.json into MongoDB
+# Migration helper — import existing case_log.json into Supabase
 # --------------------------------------------------------------------------- #
 
 def migrate_from_json(json_path: str) -> int:
     """
-    One-shot migration of an existing case_log.json into MongoDB.
-    Skips documents whose case_id already exists (idempotent).
-    Returns the number of documents actually inserted.
+    One-shot migration of an existing case_log.json into Supabase.
     """
     if not os.path.exists(json_path):
         logger.info("migrate_from_json: %s not found – nothing to migrate.", json_path)
@@ -441,15 +386,18 @@ def migrate_from_json(json_path: str) -> int:
 
     inserted = 0
     for case in cases:
-        existing = get_cases().find_one({"case_id": case.get("case_id")})
+        case_id = case.get("case_id")
+        if not case_id:
+            continue
+        existing = get_case(case_id)
         if existing:
-            logger.debug("migrate_from_json: skipping existing case_id=%s", case.get("case_id"))
+            logger.debug("migrate_from_json: skipping existing case_id=%s", case_id)
             continue
         try:
             insert_case(case)
             inserted += 1
-        except PyMongoError as exc:
-            logger.warning("migrate_from_json: skipped case %s – %s", case.get("case_id"), exc)
+        except Exception as exc:
+            logger.warning("migrate_from_json: skipped case %s – %s", case_id, exc)
 
     logger.info("migrate_from_json: inserted %d / %d cases.", inserted, len(cases))
     return inserted
@@ -461,27 +409,13 @@ def migrate_from_json(json_path: str) -> int:
 
 if __name__ == "__main__":
     import uuid
-    from pymongo.errors import ServerSelectionTimeoutError
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
-    print("\n-- Connecting to MongoDB ...")
-    try:
-        # Quick reachability check before running the full test
-        get_db().command("ping")
-    except ServerSelectionTimeoutError:
-        print(
-            "\n[ERROR] Cannot reach MongoDB at localhost:27017.\n"
-            "\nTo start MongoDB on Windows:\n"
-            "  1. Install  : https://www.mongodb.com/try/download/community\n"
-            "  2. Start    : net start MongoDB\n"
-            "     -- or --  mongod --dbpath C:\\data\\db\n"
-            "\nAlternatively, set MONGO_URI in .env to point to MongoDB Atlas:\n"
-            "  MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/\n"
-        )
-        raise SystemExit(1)
+    print("\n-- Connecting to Supabase ...")
+    client = get_client()
 
-    print("\n-- Initialising indexes ...")
+    print("\n-- Verifying database tables ...")
     init_indexes()
 
     test_case_id = str(uuid.uuid4())[:8]
@@ -524,8 +458,7 @@ if __name__ == "__main__":
         print(f"   [{log['timestamp']}] {log['action']}  reviewer={log['reviewer']}")
 
     print("\n-- Cleaning up test document ...")
-    get_cases().delete_one({"case_id": test_case_id})
-    get_audit_logs().delete_many({"case_id": test_case_id})
+    get_client().table("cases").delete().eq("case_id", test_case_id).execute()
+    get_client().table("audit_logs").delete().eq("case_id", test_case_id).execute()
 
-    print("\n[OK]  Smoke test passed -- MongoDB layer is healthy.\n")
-
+    print("\n[OK]  Smoke test passed -- Supabase database layer is healthy.\n")

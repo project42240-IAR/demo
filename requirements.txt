@@ -12,7 +12,7 @@ lxml>=5.2.0
 # pip install playwright && playwright install chromium
 
 # database.py dependencies
-pymongo>=4.7
+supabase>=2.0
 cryptography>=42.0
 python-dotenv>=1.0
 

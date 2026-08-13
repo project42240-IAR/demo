@@ -82,7 +82,7 @@ fake-account-detector/
   takedown records, or a public fake-account benchmark dataset).
 - Add platform API connectors (subject to each platform's developer terms) so
   scans can be run directly from a username instead of manual field entry.
-- Give the central-agency case log persistent storage (a real database) and
+- Give the central-agency case log persistent storage (Supabase PostgreSQL database via database.py) and
   role-based access instead of the local JSON file used for this prototype.
 - Add an audit trail per case (who reviewed it, when, and why) for legal
   defensibility if a flagged account disputes the takedown.

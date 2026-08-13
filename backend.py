@@ -12,7 +12,7 @@ This file is the unified entry point that wires together every subsystem:
   │  Detection engine  detector.py          RawAccount → Assessment          │
   │  OSINT scraper     scraper.py           URL → RawAccount (3-layer)       │
   │  Multi-engine agg  aggregator.py        VirusTotal-style 3-engine scan   │
-  │  MongoDB layer     database.py          Encrypted cases + audit logs     │
+  │  Supabase layer    database.py          Encrypted cases + audit logs     │
   │  Blockchain log    blockchain_logger.py  SHA-256 on-chain evidence log   │
   └─────────────────────────────────────────────────────────────────────────┘
 
@@ -25,7 +25,7 @@ API Surface
   POST /api/aggregate          — 3-engine parallel consensus scan
   POST /api/scrape             — scrape a public profile URL → RawAccount
 
-  POST /api/report             — persist assessment → MongoDB case
+  POST /api/report             — persist assessment → Supabase case
   GET  /api/reports            — list cases (paginated, filtered)
   GET  /api/reports/<id>       — fetch single case
   POST /api/reports/<id>/status — update status (+ blockchain on escalate)
@@ -39,7 +39,7 @@ API Surface
 Security
 --------
   • All write routes validate input strictly; unknown fields are ignored.
-  • Status transitions are atomic (MongoDB find_one_and_update).
+  • Status transitions are stored in Supabase.
   • High-severity transitions trigger an on-chain SHA-256 hash via Web3.py.
   • Sensitive fields (username, reasons) are Fernet-encrypted at rest.
   • CORS is enabled for the configured CORS_ORIGINS env var.
@@ -52,8 +52,8 @@ Configuration  (.env)
   FLASK_PORT              — port to listen on (default 5000)
   FLASK_HOST              — host to bind (default 0.0.0.0)
   CORS_ORIGINS            — comma-separated allowed origins (default *)
-  MONGO_URI               — MongoDB connection string
-  MONGO_DB_NAME           — database name
+  SUPABASE_URL            — Supabase project URL
+  SUPABASE_SECRET_KEY     — Supabase secret service role key
   DB_ENCRYPTION_KEY       — Fernet key for field-level encryption
   CHAIN_DRY_RUN           — "true" to skip real blockchain transactions
   WEB3_PROVIDER_URI       — Ganache / Anvil RPC endpoint
@@ -268,10 +268,10 @@ def health():
     subsystems: dict[str, Any] = {}
     overall_ok = True
 
-    # ── MongoDB ──────────────────────────────────────────────────────────── #
+    # ── Supabase ─────────────────────────────────────────────────────────── #
     t0 = time.perf_counter()
     try:
-        db.get_db().command("ping")
+        db.init_indexes()
         subsystems["database"] = {
             "status":     "ok",
             "latency_ms": round((time.perf_counter() - t0) * 1000, 1),

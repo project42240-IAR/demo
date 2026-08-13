@@ -6,9 +6,9 @@ problem statement (PS-SW-003): once a tool flags an account, a designated
 central agency needs a record it can act on (approach the platform for
 suspension / pursue legal action).
 
-Database backend: MongoDB (via database.py)
-  - Cases collection  : full case document with encrypted sensitive fields
-  - AuditLogs collection : append-only reviewer action trail
+Database backend: Supabase (via database.py)
+  - cases table      : full case row with encrypted sensitive fields
+  - audit_logs table : append-only reviewer action trail
 
 All case reads/writes go through database.py which guarantees:
   - Field-level Fernet (AES-128) encryption for sensitive fields
@@ -58,12 +58,12 @@ with app.app_context():
             migrated = db.migrate_from_json(legacy_path)
             if migrated:
                 app.logger.info(
-                    "Migrated %d case(s) from case_log.json into MongoDB.", migrated
+                    "Migrated %d case(s) from case_log.json into Supabase.", migrated
                 )
     except Exception as exc:  # pragma: no cover
         app.logger.error(
             "Database initialisation failed: %s — the app will start but "
-            "all database operations will fail until MongoDB is reachable.",
+            "all database operations will fail until Supabase is reachable.",
             exc,
         )
 
