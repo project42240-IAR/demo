@@ -1,187 +1,514 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SENTRY — Fake Account Detection &amp; Reporting</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTRY — SOC Fake Account Detection &amp; Reporting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
 <div class="scan-overlay" aria-hidden="true"></div>
 
-<header class="topbar">
-  <div class="brand">
-    <span class="brand-mark">◈</span>
-    <div class="brand-text">
-      <span class="brand-name">SENTRY</span>
-      <span class="brand-sub">Fake Account Detection &amp; Reporting System</span>
-    </div>
-  </div>
-  <div class="topbar-meta">
-    <span class="badge-live"><i></i>ENGINE ONLINE</span>
-    <span class="ps-ref">PS-SW-003 · Blockchain &amp; Cybersecurity</span>
-    {% if current_user %}
-    <div class="user-pill">
-      <span class="user-avatar">👤</span>
-      <span class="user-name">{{ current_user.full_name or current_user.email }}</span>
-      <a href="/logout" class="btn-logout" title="Logout">Logout 🚪</a>
-    </div>
-    {% endif %}
-  </div>
-</header>
-
-<main class="layout">
-
-  <!-- LEFT: input panel -->
-  <section class="panel input-panel">
-    <div class="panel-head">
-      <h2><span class="idx">01</span> Profile Intake</h2>
-      <p>Enter the observed profile signals. Fields mirror what a moderator or scraper would capture from a public profile.</p>
+<div class="app-layout">
+  
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-shield">🛡️</span>
+      <div class="brand-title">
+        <span class="brand-name">SENTRY</span>
+        <span class="brand-sub">Fake Account Detection</span>
+      </div>
     </div>
 
-    <form id="scan-form">
-      <div class="grid-2">
-        <label>Username
-          <input type="text" name="username" placeholder="e.g. rahul_sharma92" required />
-        </label>
-        <label>Display name
-          <input type="text" name="display_name" placeholder="e.g. Rahul Sharma" />
-        </label>
-      </div>
+    <nav class="sidebar-nav">
+      <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="#analyze" class="nav-item" data-tab="analyze">
+        <span class="nav-icon">🔍</span>
+        <span class="nav-label">Analyze</span>
+      </a>
+      <a href="#detection" class="nav-item" data-tab="detection">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Detection</span>
+      </a>
+      <a href="#reports" class="nav-item" data-tab="reports">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Reports</span>
+      </a>
+      <a href="#cases" class="nav-item" data-tab="cases">
+        <span class="nav-icon">⚖️</span>
+        <span class="nav-label">Cases</span>
+      </a>
+      <a href="#evidence" class="nav-item" data-tab="evidence">
+        <span class="nav-icon">📁</span>
+        <span class="nav-label">Evidence</span>
+      </a>
+      <a href="#audit" class="nav-item" data-tab="audit">
+        <span class="nav-icon">📝</span>
+        <span class="nav-label">Audit Logs</span>
+      </a>
+      <a href="#settings" class="nav-item" data-tab="settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
 
-      <div class="grid-2">
-        <label>Platform
-          <select name="platform">
-            <option>Instagram</option>
-            <option>Facebook</option>
-            <option>X / Twitter</option>
-            <option>generic</option>
-          </select>
-        </label>
-        <label>Account age (days)
-          <input type="number" name="account_age_days" value="365" min="0" />
-        </label>
-      </div>
-
-      <div class="grid-3">
-        <label>Followers
-          <input type="number" name="followers" value="240" min="0" />
-        </label>
-        <label>Following
-          <input type="number" name="following" value="180" min="0" />
-        </label>
-        <label>Total posts
-          <input type="number" name="posts_count" value="35" min="0" />
-        </label>
-      </div>
-
-      <div class="grid-2">
-        <label>Avg. posts / day
-          <input type="number" step="0.1" name="avg_posts_per_day" value="0.4" min="0" />
-        </label>
-        <label>Engagement rate (0–1)
-          <input type="number" step="0.01" name="engagement_rate" value="0.06" min="0" max="1" />
-        </label>
-      </div>
-
-      <label class="full">Bio text
-        <textarea name="bio" rows="2" placeholder="Paste the account bio (optional)"></textarea>
-      </label>
-
-      <div class="grid-3 checks">
-        <label class="checkbox"><input type="checkbox" name="has_profile_pic" checked /> Has profile photo</label>
-        <label class="checkbox"><input type="checkbox" name="account_uses_stock_photo" /> Photo looks stock/stolen</label>
-        <label>Recent username changes
-          <input type="number" name="recent_username_changes" value="0" min="0" />
-        </label>
-      </div>
-
-      <div class="actions">
-        <button type="submit" class="btn-primary">Run Detection Scan</button>
-        <button type="button" id="demo-fake" class="btn-ghost">Load suspicious example</button>
-        <button type="button" id="demo-real" class="btn-ghost">Load genuine example</button>
-      </div>
-    </form>
-  </section>
-
-  <!-- RIGHT: results panel -->
-  <section class="panel result-panel">
-    <div class="panel-head">
-      <h2><span class="idx">02</span> Risk Assessment</h2>
-      <p>Blends a transparent rule engine with a trained classifier so every score is explainable.</p>
+    <div class="sidebar-footer">
+      <span class="badge-status"><i></i> ENGINE ONLINE</span>
     </div>
+  </aside>
 
-    <div id="result-empty" class="result-empty">
-      <p>Run a scan to see the trust score, contributing signals, and report the account if it's flagged.</p>
-    </div>
+  <!-- MAIN WRAPPER -->
+  <div class="main-wrapper">
+    
+    <!-- TOP HEADER -->
+    <header class="top-header">
+      <div class="header-left">
+        <h1 id="page-title" class="page-title">Dashboard Overview</h1>
+        <span class="ps-ref">PS-SW-003 · Blockchain &amp; Cybersecurity</span>
+      </div>
 
-    <div id="result-body" class="result-body hidden">
-      <div class="gauge-wrap">
-        <svg id="gauge" viewBox="0 0 240 150" class="gauge">
-          <path id="gauge-track" d="M 20 130 A 100 100 0 0 1 220 130" />
-          <path id="gauge-fill" d="M 20 130 A 100 100 0 0 1 220 130" />
-          <line id="gauge-needle" x1="120" y1="130" x2="120" y2="45" />
-          <circle cx="120" cy="130" r="7" class="gauge-hub" />
-        </svg>
-        <div class="gauge-readout">
-          <span id="score-value">--</span>
-          <span class="score-label">risk score</span>
+      <div class="header-right">
+        <!-- Notification Dropdown -->
+        <div class="notif-wrapper">
+          <button id="notif-btn" class="notif-btn" title="Notifications">
+            🔔 <span class="notif-badge">3</span>
+          </button>
+          <div id="notif-dropdown" class="notif-dropdown hidden">
+            <div class="notif-head">Notifications</div>
+            <div class="notif-list">
+              <div class="notif-item">
+                <span class="notif-tag critical">CRITICAL</span>
+                <span class="notif-text">Account @xX_giftcards_Xx flagged (Risk: 94)</span>
+              </div>
+              <div class="notif-item">
+                <span class="notif-tag high">HIGH</span>
+                <span class="notif-text">Case #CASE-00125 escalated to YouTube</span>
+              </div>
+              <div class="notif-item">
+                <span class="notif-tag info">INFO</span>
+                <span class="notif-text">Blockchain SHA-256 receipt committed #0x8f2a</span>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <!-- User Dropdown Pill -->
+        {% if current_user %}
+        <div class="user-menu-wrap">
+          <button id="user-menu-btn" class="user-pill-btn">
+            <span class="user-avatar">👤</span>
+            <span class="user-name">{{ current_user.full_name or current_user.email }}</span>
+            <span class="user-arrow">▼</span>
+          </button>
+          <div id="user-dropdown" class="user-dropdown hidden">
+            <div class="user-drop-item role-info">Role: {{ current_user.role | capitalize }}</div>
+            <a href="/logout" class="user-drop-item logout-link">Logout 🚪</a>
+          </div>
+        </div>
+        {% endif %}
       </div>
+    </header>
 
-      <div class="verdict-row">
-        <span id="verdict-pill" class="pill">--</span>
-        <span id="confidence-text" class="confidence">--</span>
-      </div>
+    <!-- CONTENT SECTIONS -->
+    <main class="content-body">
 
-      <div class="score-breakdown">
-        <div class="score-chip"><span>Rule engine</span><strong id="rule-score">--</strong></div>
-        <div class="score-chip"><span>ML classifier</span><strong id="model-score">--</strong></div>
-      </div>
+      <!-- TAB 1: DASHBOARD OVERVIEW -->
+      <section id="tab-dashboard" class="tab-view active-view">
+        <!-- 4 KPI CARDS GRID -->
+        <div class="kpi-grid">
+          <div class="kpi-card cyan">
+            <div class="kpi-icon">👤</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Accounts</span>
+              <span class="kpi-value" id="kpi-accounts">1,245</span>
+            </div>
+          </div>
 
-      <div class="reasons">
-        <h3>Contributing signals</h3>
-        <ul id="reasons-list"></ul>
-      </div>
+          <div class="kpi-card amber">
+            <div class="kpi-icon">📋</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Reports</span>
+              <span class="kpi-value" id="kpi-reports">87</span>
+            </div>
+          </div>
 
-      <button id="report-btn" class="btn-danger hidden">Report to Central Agency</button>
-      <p id="report-confirm" class="report-confirm hidden">Case filed — visible in the case log below.</p>
-    </div>
-  </section>
+          <div class="kpi-card red">
+            <div class="kpi-icon">⚠️</div>
+            <div class="kpi-content">
+              <span class="kpi-label">High Risk</span>
+              <span class="kpi-value" id="kpi-high-risk">32</span>
+            </div>
+          </div>
 
-</main>
+          <div class="kpi-card purple">
+            <div class="kpi-icon">⚖️</div>
+            <div class="kpi-content">
+              <span class="kpi-label">Cases</span>
+              <span class="kpi-value" id="kpi-cases">45</span>
+            </div>
+          </div>
+        </div>
 
-<section class="panel case-log-panel">
-  <div class="panel-head row">
-    <div>
-      <h2><span class="idx">03</span> Central Agency Case Log</h2>
-      <p>Flagged accounts awaiting takedown / legal follow-up with the concerned platform.</p>
-    </div>
-    <a href="/api/reports/export" class="btn-ghost small">Export CSV</a>
+        <!-- RISK DISTRIBUTION & RECENT CASES GRID -->
+        <div class="dashboard-grid">
+          
+          <!-- Risk Distribution Bar Panel -->
+          <div class="panel risk-panel">
+            <div class="panel-head">
+              <h2>📊 Risk Distribution</h2>
+              <p>Severity rating of active social media profiles.</p>
+            </div>
+
+            <div class="risk-bars-container">
+              <div class="risk-bar-row">
+                <div class="bar-meta">
+                  <span class="risk-tag low">LOW</span>
+                  <span id="risk-count-low" class="bar-count">15</span>
+                </div>
+                <div class="bar-track">
+                  <div id="risk-bar-low" class="bar-fill low" style="width: 45%;"></div>
+                </div>
+              </div>
+
+              <div class="risk-bar-row">
+                <div class="bar-meta">
+                  <span class="risk-tag medium">MEDIUM</span>
+                  <span id="risk-count-medium" class="bar-count">9</span>
+                </div>
+                <div class="bar-track">
+                  <div id="risk-bar-medium" class="bar-fill medium" style="width: 28%;"></div>
+                </div>
+              </div>
+
+              <div class="risk-bar-row">
+                <div class="bar-meta">
+                  <span class="risk-tag high">HIGH</span>
+                  <span id="risk-count-high" class="bar-count">5</span>
+                </div>
+                <div class="bar-track">
+                  <div id="risk-bar-high" class="bar-fill high" style="width: 16%;"></div>
+                </div>
+              </div>
+
+              <div class="risk-bar-row">
+                <div class="bar-meta">
+                  <span class="risk-tag critical">CRITICAL</span>
+                  <span id="risk-count-critical" class="bar-count">3</span>
+                </div>
+                <div class="bar-track">
+                  <div id="risk-bar-critical" class="bar-fill critical" style="width: 11%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Cases Mini-Table -->
+          <div class="panel recent-cases-panel">
+            <div class="panel-head row">
+              <div>
+                <h2>📋 Recent Cases</h2>
+                <p>Flagged account assessments awaiting action.</p>
+              </div>
+              <button class="btn-ghost small" onclick="switchTab('cases')">View All Cases</button>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Case ID</th>
+                    <th>Account</th>
+                    <th>Platform</th>
+                    <th>Risk Tier</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-cases-tbody">
+                  <tr>
+                    <td>#CASE-00125</td>
+                    <td>@xX_giftcards_Xx</td>
+                    <td>YouTube</td>
+                    <td><span class="pill high">HIGH</span></td>
+                    <td><span class="status-chip review">Under Review</span></td>
+                  </tr>
+                  <tr>
+                    <td>#CASE-00124</td>
+                    <td>@bot_x99</td>
+                    <td>X / Twitter</td>
+                    <td><span class="pill medium">MED</span></td>
+                    <td><span class="status-chip open">Open</span></td>
+                  </tr>
+                  <tr>
+                    <td>#CASE-00123</td>
+                    <td>@free_spins_2026</td>
+                    <td>YouTube</td>
+                    <td><span class="pill high">HIGH</span></td>
+                    <td><span class="status-chip platform">Platform Report</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB 2: ANALYZE (PROFILE INTAKE) -->
+      <section id="tab-analyze" class="tab-view hidden-view">
+        <div class="layout">
+          <!-- LEFT: input panel -->
+          <div class="panel input-panel">
+            <div class="panel-head">
+              <h2><span class="idx">01</span> Profile Intake</h2>
+              <p>Enter the observed profile signals. Fields mirror what a moderator or scraper would capture from a public profile.</p>
+            </div>
+
+            <form id="scan-form">
+              <div class="grid-2">
+                <label>Username
+                  <input type="text" name="username" placeholder="e.g. rahul_sharma92" required />
+                </label>
+                <label>Display name
+                  <input type="text" name="display_name" placeholder="e.g. Rahul Sharma" />
+                </label>
+              </div>
+
+              <div class="grid-2">
+                <label>Platform
+                  <select name="platform">
+                    <option>Instagram</option>
+                    <option>Facebook</option>
+                    <option>X / Twitter</option>
+                    <option>generic</option>
+                  </select>
+                </label>
+                <label>Account age (days)
+                  <input type="number" name="account_age_days" value="365" min="0" />
+                </label>
+              </div>
+
+              <div class="grid-3">
+                <label>Followers
+                  <input type="number" name="followers" value="240" min="0" />
+                </label>
+                <label>Following
+                  <input type="number" name="following" value="180" min="0" />
+                </label>
+                <label>Total posts
+                  <input type="number" name="posts_count" value="35" min="0" />
+                </label>
+              </div>
+
+              <div class="grid-2">
+                <label>Avg. posts / day
+                  <input type="number" step="0.1" name="avg_posts_per_day" value="0.4" min="0" />
+                </label>
+                <label>Engagement rate (0–1)
+                  <input type="number" step="0.01" name="engagement_rate" value="0.06" min="0" max="1" />
+                </label>
+              </div>
+
+              <label class="full">Bio text
+                <textarea name="bio" rows="2" placeholder="Paste the account bio (optional)"></textarea>
+              </label>
+
+              <div class="grid-3 checks">
+                <label class="checkbox"><input type="checkbox" name="has_profile_pic" checked /> Has profile photo</label>
+                <label class="checkbox"><input type="checkbox" name="account_uses_stock_photo" /> Photo looks stock/stolen</label>
+                <label>Recent username changes
+                  <input type="number" name="recent_username_changes" value="0" min="0" />
+                </label>
+              </div>
+
+              <div class="actions">
+                <button type="submit" class="btn-primary">Run Detection Scan</button>
+                <button type="button" id="demo-fake" class="btn-ghost">Load suspicious example</button>
+                <button type="button" id="demo-real" class="btn-ghost">Load genuine example</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- RIGHT: results panel -->
+          <div class="panel result-panel">
+            <div class="panel-head">
+              <h2><span class="idx">02</span> Risk Assessment</h2>
+              <p>Blends a transparent rule engine with a trained classifier so every score is explainable.</p>
+            </div>
+
+            <div id="result-empty" class="result-empty">
+              <p>Run a scan to see the trust score, contributing signals, and report the account if it's flagged.</p>
+            </div>
+
+            <div id="result-body" class="result-body hidden">
+              <div class="gauge-wrap">
+                <svg id="gauge" viewBox="0 0 240 150" class="gauge">
+                  <path id="gauge-track" d="M 20 130 A 100 100 0 0 1 220 130" />
+                  <path id="gauge-fill" d="M 20 130 A 100 100 0 0 1 220 130" />
+                  <line id="gauge-needle" x1="120" y1="130" x2="120" y2="45" />
+                  <circle cx="120" cy="130" r="7" class="gauge-hub" />
+                </svg>
+                <div class="gauge-readout">
+                  <span id="score-value">--</span>
+                  <span class="score-label">risk score</span>
+                </div>
+              </div>
+
+              <div class="verdict-row">
+                <span id="verdict-pill" class="pill">--</span>
+                <span id="confidence-text" class="confidence">--</span>
+              </div>
+
+              <div class="score-breakdown">
+                <div class="score-chip"><span>Rule engine</span><strong id="rule-score">--</strong></div>
+                <div class="score-chip"><span>ML classifier</span><strong id="model-score">--</strong></div>
+              </div>
+
+              <div class="reasons">
+                <h3>Contributing signals</h3>
+                <ul id="reasons-list"></ul>
+              </div>
+
+              <button id="report-btn" class="btn-danger hidden">Report to Central Agency</button>
+              <p id="report-confirm" class="report-confirm hidden">Case filed — visible in the case log below.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: DETECTION -->
+      <section id="tab-detection" class="tab-view hidden-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>📊 Detection Consensus &amp; ML Matrix</h2>
+            <p>Multi-engine consensus scan comparing internal heuristics with anomaly detectors.</p>
+          </div>
+          <div style="padding: 20px; color: var(--text-muted);">
+            <p>The detection engine blends internal rule heuristics with trained random forest classifier weights. Submit an account profile under <strong>Analyze</strong> to populate consensus signals.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: REPORTS / CASES TABLE -->
+      <section id="tab-reports" class="tab-view hidden-view">
+        <div class="panel case-log-panel">
+          <div class="panel-head row">
+            <div>
+              <h2><span class="idx">03</span> Central Agency Case Log</h2>
+              <p>Flagged accounts awaiting takedown / legal follow-up with the concerned platform.</p>
+            </div>
+            <a href="/api/reports/export" class="btn-ghost small">Export CSV</a>
+          </div>
+
+          <div class="table-wrap">
+            <table id="case-table">
+              <thead>
+                <tr>
+                  <th>Case</th>
+                  <th>Account</th>
+                  <th>Platform</th>
+                  <th>Score</th>
+                  <th>Verdict</th>
+                  <th>Filed</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="case-tbody">
+                <tr class="empty-row"><td colspan="7">No cases filed yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: CASES -->
+      <section id="tab-cases" class="tab-view hidden-view">
+        <div class="panel">
+          <div class="panel-head row">
+            <div>
+              <h2>⚖️ Active Case Management</h2>
+              <p>Review active escalations, change status workflow, and verify platform responses.</p>
+            </div>
+            <a href="/api/reports/export" class="btn-ghost small">Export CSV</a>
+          </div>
+
+          <div class="table-wrap">
+            <table id="full-case-table">
+              <thead>
+                <tr>
+                  <th>Case ID</th>
+                  <th>Account</th>
+                  <th>Platform</th>
+                  <th>Score</th>
+                  <th>Verdict</th>
+                  <th>Filed</th>
+                  <th>Status Workflow</th>
+                </tr>
+              </thead>
+              <tbody id="full-case-tbody">
+                <tr class="empty-row"><td colspan="7">Loading active cases...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: EVIDENCE -->
+      <section id="tab-evidence" class="tab-view hidden-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>📁 Immutable Blockchain Evidence Log</h2>
+            <p>On-chain SHA-256 evidence logs committed via Ethereum/Polygon Web3.py backend.</p>
+          </div>
+          <div style="padding: 20px; font-family: var(--mono); font-size: 13px; color: var(--muted);">
+            <p>✔️ Status transitions ("Escalated to Platform", "Account Suspended") generate an immutable SHA-256 evidence payload hash committed to the blockchain network.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: AUDIT LOGS -->
+      <section id="tab-audit" class="tab-view hidden-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>📝 Audit Trail</h2>
+            <p>Append-only reviewer activity log captured per request.</p>
+          </div>
+          <div style="padding: 20px; font-family: var(--mono); font-size: 13px;">
+            <p>All reviewer updates record timestamped audit events encrypted via Fernet AES-128 before writing to database storage.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 8: SETTINGS -->
+      <section id="tab-settings" class="tab-view hidden-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>⚙️ System &amp; Engine Settings</h2>
+            <p>Configure detection risk thresholds and database connectivity.</p>
+          </div>
+          <div style="padding: 20px;">
+            <div class="grid-2" style="max-width: 600px;">
+              <label>High Risk Threshold
+                <input type="number" value="70" readonly />
+              </label>
+              <label>Critical Risk Threshold
+                <input type="number" value="90" readonly />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
 
-  <div class="table-wrap">
-    <table id="case-table">
-      <thead>
-        <tr>
-          <th>Case</th>
-          <th>Account</th>
-          <th>Platform</th>
-          <th>Score</th>
-          <th>Verdict</th>
-          <th>Filed</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="case-tbody">
-        <tr class="empty-row"><td colspan="7">No cases filed yet.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+</div>
 
 <footer class="footer">
   <p>Prototype built for SIH Sprint 2026 · PS-SW-003 — heuristics + classifier run entirely client-side of the platform APIs; wire in real platform data feeds for production use.</p>

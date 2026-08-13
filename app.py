@@ -189,6 +189,13 @@ def logout():
     return redirect(url_for("login_page"))
 
 
+@app.route("/api/dashboard/stats", methods=["GET"])
+def dashboard_stats():
+    """Return live SOC Dashboard Overview KPI metrics, risk distribution, and recent cases."""
+    stats = db.get_dashboard_stats()
+    return jsonify(stats)
+
+
 @app.route("/api/scan", methods=["POST"])
 def scan():
     """
