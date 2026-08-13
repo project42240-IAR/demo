@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SENTRY — Fake Account Detection &amp; Reporting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<div class="scan-overlay" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◈</span>
+    <div class="brand-text">
+      <span class="brand-name">SENTRY</span>
+      <span class="brand-sub">Fake Account Detection &amp; Reporting System</span>
+    </div>
+  </div>
+  <div class="topbar-meta">
+    <span class="badge-live"><i></i>ENGINE ONLINE</span>
+    <span class="ps-ref">PS-SW-003 · Blockchain &amp; Cybersecurity</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- LEFT: input panel -->
+  <section class="panel input-panel">
+    <div class="panel-head">
+      <h2><span class="idx">01</span> Profile Intake</h2>
+      <p>Enter the observed profile signals. Fields mirror what a moderator or scraper would capture from a public profile.</p>
+    </div>
+
+    <form id="scan-form">
+      <div class="grid-2">
+        <label>Username
+          <input type="text" name="username" placeholder="e.g. rahul_sharma92" required />
+        </label>
+        <label>Display name
+          <input type="text" name="display_name" placeholder="e.g. Rahul Sharma" />
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <label>Platform
+          <select name="platform">
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>X / Twitter</option>
+            <option>generic</option>
+          </select>
+        </label>
+        <label>Account age (days)
+          <input type="number" name="account_age_days" value="365" min="0" />
+        </label>
+      </div>
+
+      <div class="grid-3">
+        <label>Followers
+          <input type="number" name="followers" value="240" min="0" />
+        </label>
+        <label>Following
+          <input type="number" name="following" value="180" min="0" />
+        </label>
+        <label>Total posts
+          <input type="number" name="posts_count" value="35" min="0" />
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <label>Avg. posts / day
+          <input type="number" step="0.1" name="avg_posts_per_day" value="0.4" min="0" />
+        </label>
+        <label>Engagement rate (0–1)
+          <input type="number" step="0.01" name="engagement_rate" value="0.06" min="0" max="1" />
+        </label>
+      </div>
+
+      <label class="full">Bio text
+        <textarea name="bio" rows="2" placeholder="Paste the account bio (optional)"></textarea>
+      </label>
+
+      <div class="grid-3 checks">
+        <label class="checkbox"><input type="checkbox" name="has_profile_pic" checked /> Has profile photo</label>
+        <label class="checkbox"><input type="checkbox" name="account_uses_stock_photo" /> Photo looks stock/stolen</label>
+        <label>Recent username changes
+          <input type="number" name="recent_username_changes" value="0" min="0" />
+        </label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn-primary">Run Detection Scan</button>
+        <button type="button" id="demo-fake" class="btn-ghost">Load suspicious example</button>
+        <button type="button" id="demo-real" class="btn-ghost">Load genuine example</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- RIGHT: results panel -->
+  <section class="panel result-panel">
+    <div class="panel-head">
+      <h2><span class="idx">02</span> Risk Assessment</h2>
+      <p>Blends a transparent rule engine with a trained classifier so every score is explainable.</p>
+    </div>
+
+    <div id="result-empty" class="result-empty">
+      <p>Run a scan to see the trust score, contributing signals, and report the account if it's flagged.</p>
+    </div>
+
+    <div id="result-body" class="result-body hidden">
+      <div class="gauge-wrap">
+        <svg id="gauge" viewBox="0 0 240 150" class="gauge">
+          <path id="gauge-track" d="M 20 130 A 100 100 0 0 1 220 130" />
+          <path id="gauge-fill" d="M 20 130 A 100 100 0 0 1 220 130" />
+          <line id="gauge-needle" x1="120" y1="130" x2="120" y2="45" />
+          <circle cx="120" cy="130" r="7" class="gauge-hub" />
+        </svg>
+        <div class="gauge-readout">
+          <span id="score-value">--</span>
+          <span class="score-label">risk score</span>
+        </div>
+      </div>
+
+      <div class="verdict-row">
+        <span id="verdict-pill" class="pill">--</span>
+        <span id="confidence-text" class="confidence">--</span>
+      </div>
+
+      <div class="score-breakdown">
+        <div class="score-chip"><span>Rule engine</span><strong id="rule-score">--</strong></div>
+        <div class="score-chip"><span>ML classifier</span><strong id="model-score">--</strong></div>
+      </div>
+
+      <div class="reasons">
+        <h3>Contributing signals</h3>
+        <ul id="reasons-list"></ul>
+      </div>
+
+      <button id="report-btn" class="btn-danger hidden">Report to Central Agency</button>
+      <p id="report-confirm" class="report-confirm hidden">Case filed — visible in the case log below.</p>
+    </div>
+  </section>
+
+</main>
+
+<section class="panel case-log-panel">
+  <div class="panel-head row">
+    <div>
+      <h2><span class="idx">03</span> Central Agency Case Log</h2>
+      <p>Flagged accounts awaiting takedown / legal follow-up with the concerned platform.</p>
+    </div>
+    <a href="/api/reports/export" class="btn-ghost small">Export CSV</a>
+  </div>
+
+  <div class="table-wrap">
+    <table id="case-table">
+      <thead>
+        <tr>
+          <th>Case</th>
+          <th>Account</th>
+          <th>Platform</th>
+          <th>Score</th>
+          <th>Verdict</th>
+          <th>Filed</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="case-tbody">
+        <tr class="empty-row"><td colspan="7">No cases filed yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>Prototype built for SIH Sprint 2026 · PS-SW-003 — heuristics + classifier run entirely client-side of the platform APIs; wire in real platform data feeds for production use.</p>
+</footer>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
