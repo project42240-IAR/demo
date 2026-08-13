@@ -265,9 +265,20 @@
         <div class="layout">
           <!-- LEFT: input panel -->
           <div class="panel input-panel">
-            <div class="panel-head">
-              <h2><span class="idx">01</span> Profile Intake</h2>
-              <p>Enter the observed profile signals. Fields mirror what a moderator or scraper would capture from a public profile.</p>
+            <div class="url-intake-box" style="margin-bottom: 20px; padding: 16px; background: rgba(56, 189, 248, 0.05); border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 10px;">
+              <label style="font-weight: 600; color: #ffffff; margin-bottom: 8px;">
+                ⚡ Multi-Platform Profile API Analysis (Instagram, X, TikTok, Facebook, YouTube)
+              </label>
+              <div style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                <input type="text" id="api-input-url" placeholder="Paste URL (e.g. https://instagram.com/example) or @username" style="flex: 1;" />
+                <button type="button" id="btn-api-analyze" class="btn-primary" style="white-space: nowrap;">
+                  <span class="spinner" id="analyze-api-spinner" style="display:none; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                  <span>Analyze API 🚀</span>
+                </button>
+              </div>
+              <div id="detected-platform-badge" class="platform-badge hidden" style="margin-top: 8px; font-size: 11px; font-family: var(--mono); color: var(--cyan);">
+                Detected Platform: <strong id="detected-platform-name">Instagram</strong> (<span id="detected-input-type">URL</span>)
+              </div>
             </div>
 
             <form id="scan-form">

@@ -365,6 +365,94 @@ if (demoRealBtn) {
   });
 }
 
+// ---------- MULTI-PLATFORM API ANALYZER ---------- //
+const apiAnalyzeBtn = document.getElementById('btn-api-analyze');
+const apiInputUrl = document.getElementById('api-input-url');
+const apiSpinner = document.getElementById('analyze-api-spinner');
+const platformBadge = document.getElementById('detected-platform-badge');
+const platformNameEl = document.getElementById('detected-platform-name');
+const inputTypeEl = document.getElementById('detected-input-type');
+
+if (apiInputUrl) {
+  apiInputUrl.addEventListener('input', () => {
+    const val = apiInputUrl.value.trim().toLowerCase();
+    if (!val) {
+      if (platformBadge) platformBadge.classList.add('hidden');
+      return;
+    }
+    let p = 'generic';
+    if (val.includes('instagram.com')) p = 'Instagram';
+    else if (val.includes('x.com') || val.includes('twitter.com')) p = 'X (Twitter)';
+    else if (val.includes('tiktok.com')) p = 'TikTok';
+    else if (val.includes('facebook.com') || val.includes('fb.com')) p = 'Facebook';
+    else if (val.includes('youtube.com')) p = 'YouTube';
+
+    if (platformBadge && platformNameEl) {
+      platformNameEl.textContent = p;
+      if (inputTypeEl) inputTypeEl.textContent = val.startsWith('http') ? 'URL' : 'Username';
+      platformBadge.classList.remove('hidden');
+    }
+  });
+}
+
+if (apiAnalyzeBtn && apiInputUrl) {
+  apiAnalyzeBtn.addEventListener('click', async () => {
+    const rawInput = apiInputUrl.value.trim();
+    if (!rawInput) {
+      alert('Please enter a profile URL or @username.');
+      return;
+    }
+
+    if (apiSpinner) apiSpinner.style.display = 'inline-block';
+    apiAnalyzeBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/profile/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: rawInput }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        const errMsg = (data.error && data.error.message) || 'Profile analysis failed.';
+        alert(`Analysis Error: ${errMsg}`);
+        return;
+      }
+
+      // Auto-fill form fields with normalized profile data
+      const p = data.profile || {};
+      if (form) {
+        if (p.username) form.username.value = p.username;
+        if (p.displayName) form.display_name.value = p.displayName;
+        if (p.platform) {
+          const pName = p.platform.toLowerCase();
+          if (pName === 'instagram') form.platform.value = 'Instagram';
+          else if (pName === 'x') form.platform.value = 'X / Twitter';
+          else if (pName === 'facebook') form.platform.value = 'Facebook';
+          else form.platform.value = 'generic';
+        }
+        if (p.followers !== undefined && p.followers !== null) form.followers.value = p.followers;
+        if (p.following !== undefined && p.following !== null) form.following.value = p.following;
+        if (p.postsCount !== undefined && p.postsCount !== null) form.posts_count.value = p.postsCount;
+        if (p.bio) form.bio.value = p.bio;
+      }
+
+      // Render Risk Gauge and Evidence
+      if (data.analysis) {
+        renderResult(data.analysis);
+      }
+
+      loadDashboardStats();
+    } catch (err) {
+      alert(`Network error: ${err.message}`);
+    } finally {
+      if (apiSpinner) apiSpinner.style.display = 'none';
+      apiAnalyzeBtn.disabled = false;
+    }
+  });
+}
+
 // INITIALIZATION
 loadDashboardStats();
 loadCases();

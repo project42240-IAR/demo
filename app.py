@@ -26,6 +26,7 @@ import csv
 import io
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -38,6 +39,15 @@ from blockchain_logger import (
     BLOCKCHAIN_TRIGGER_STATUSES,
 )
 from aggregator import scan_profile_endpoint
+from platforms import (
+    PlatformDetector,
+    EvidenceEngine,
+    InstagramAdapter,
+    XAdapter,
+    TikTokAdapter,
+    FacebookAdapter,
+    YouTubeAdapter,
+)
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -194,6 +204,108 @@ def dashboard_stats():
     """Return live SOC Dashboard Overview KPI metrics, risk distribution, and recent cases."""
     stats = db.get_dashboard_stats()
     return jsonify(stats)
+
+
+@app.route("/api/profile/analyze", methods=["POST"])
+def analyze_profile():
+    """
+    Multi-Platform Social Profile Analysis API endpoint.
+    Accepts: { "input": "@username_or_profile_url" }
+    Detects platform, calls official API adapter, normalises data, executes Evidence Engine,
+    assesses risk classifier score, caches and stores results in Supabase.
+    """
+    t0 = time.time()
+    payload = request.get_json(silent=True) or request.form or {}
+    raw_input = payload.get("input", "").strip()
+
+    if not raw_input:
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "INVALID_INPUT",
+                "message": "The 'input' field is required. Please provide a profile URL or @username."
+            }
+        }), 400
+
+    # 1. Platform Detection
+    try:
+        detection = PlatformDetector.detect(raw_input)
+    except ValueError as exc:
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "UNSUPPORTED_PLATFORM",
+                "message": str(exc)
+            }
+        }), 400
+
+    platform = detection["platform"]
+    identifier = detection["identifier"]
+
+    # 2. Check Database / Memory Cache
+    force_refresh = bool(payload.get("force_refresh", False))
+    if not force_refresh:
+        cached_result = db.get_cached_profile(platform, identifier, max_age_hours=24.0)
+        if cached_result:
+            return jsonify(cached_result), 200
+
+    # 3. Select Platform Adapter
+    adapters = {
+        "instagram": InstagramAdapter,
+        "x": XAdapter,
+        "tiktok": TikTokAdapter,
+        "facebook": FacebookAdapter,
+        "youtube": YouTubeAdapter,
+    }
+    adapter_cls = adapters.get(platform, InstagramAdapter)
+    adapter = adapter_cls()
+
+    # 4. Fetch & Normalize Profile
+    try:
+        normalized_prof = adapter.get_profile(identifier)
+    except Exception as exc:
+        app.logger.error("Platform adapter fetch failed for %s (%s): %s", identifier, platform, exc)
+        return jsonify({
+            "success": False,
+            "error": {
+                "code": "PLATFORM_API_ERROR",
+                "message": f"Unable to retrieve profile data from {platform.capitalize()} API."
+            }
+        }), 502
+
+    # 5. Process Evidence Engine
+    evidence_list = EvidenceEngine.process(normalized_prof)
+
+    # 6. Run Detection Classifier
+    raw_acc = RawAccount(
+        username=normalized_prof.username or identifier,
+        display_name=normalized_prof.display_name or "",
+        account_age_days=365.0,
+        followers=normalized_prof.followers or 0,
+        following=normalized_prof.following or 0,
+        posts_count=normalized_prof.posts_count or 0,
+        has_profile_pic=bool(normalized_prof.avatar_url),
+        bio=normalized_prof.bio or "",
+        avg_posts_per_day=0.5,
+        engagement_rate=0.05,
+        account_uses_stock_photo=False,
+        recent_username_changes=0,
+        platform=platform,
+    )
+    analysis_assessment = assess_account(raw_acc)
+
+    latency_ms = round((time.time() - t0) * 1000.0, 2)
+
+    # 7. Save to Supabase
+    saved_payload = db.save_profile_analysis(
+        profile_data=normalized_prof.to_dict(),
+        evidence_list=[ev.to_dict() for ev in evidence_list],
+        analysis_data=analysis_assessment.to_dict(),
+        input_text=raw_input,
+        latency_ms=latency_ms,
+    )
+
+    return jsonify(saved_payload), 200
 
 
 @app.route("/api/scan", methods=["POST"])
