@@ -62,14 +62,41 @@ def _bootstrap_env() -> None:
     """Ensure required env vars exist; generate key if missing."""
     if not os.environ.get("DB_ENCRYPTION_KEY"):
         new_key = Fernet.generate_key().decode()  # 44-char URL-safe base64
-        set_key(ENV_PATH, "DB_ENCRYPTION_KEY", new_key)
-        os.environ["DB_ENCRYPTION_KEY"] = new_key
-        logger.warning(
-            "No DB_ENCRYPTION_KEY found – generated a new key and saved it to %s. "
-            "Back this up immediately; losing it means losing access to all "
-            "encrypted database fields.",
-            ENV_PATH,
-        )
+        # Attempt to persist the generated key to disk. On some hosting
+        # platforms (Vercel, serverless runtimes) the deployment directory
+        # is read-only and writing .env will raise an OSError when tempfile
+        # operations are attempted by dotenv.set_key. In that case, fall
+        # back to storing the key in the process environment only and log
+        # a clear warning so operators can provision a permanent key.
+        try:
+            set_key(ENV_PATH, "DB_ENCRYPTION_KEY", new_key)
+            os.environ["DB_ENCRYPTION_KEY"] = new_key
+            logger.warning(
+                "No DB_ENCRYPTION_KEY found – generated a new key and saved it to %s. "
+                "Back this up immediately; losing it means losing access to all "
+                "encrypted database fields.",
+                ENV_PATH,
+            )
+        except OSError as exc:  # pragma: no cover - environment-specific
+            # Read-only filesystem (e.g. Vercel lambda). Use ephemeral key
+            # for the running process but do NOT attempt to write to disk.
+            os.environ["DB_ENCRYPTION_KEY"] = new_key
+            logger.warning(
+                "No DB_ENCRYPTION_KEY found — generated key but could not write %s (read-only filesystem). "
+                "Using in-memory key for this process only; persist the key elsewhere to avoid losing access to encrypted data. Error: %s",
+                ENV_PATH,
+                exc,
+            )
+        except Exception as exc:  # pragma: no cover
+            # Any other failure while attempting to persist the .env should
+            # not prevent the application from starting; fall back to in-
+            # memory usage and log the issue for investigation.
+            os.environ["DB_ENCRYPTION_KEY"] = new_key
+            logger.warning(
+                "Failed to persist DB_ENCRYPTION_KEY to %s: %s. Using in-memory key.",
+                ENV_PATH,
+                exc,
+            )
 
 
 _bootstrap_env()
