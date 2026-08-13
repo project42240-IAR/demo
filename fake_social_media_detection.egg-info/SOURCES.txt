@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+fake_social_media_detection.egg-info/PKG-INFO
+fake_social_media_detection.egg-info/SOURCES.txt
+fake_social_media_detection.egg-info/dependency_links.txt
+fake_social_media_detection.egg-info/requires.txt
+fake_social_media_detection.egg-info/top_level.txt
+tests/test_platform_analysis.py
