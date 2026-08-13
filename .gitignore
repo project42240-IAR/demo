@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Nested submodules / git folders
+fake-account-detector/
+
 # Python bytecode & cache
 __pycache__/
 *.pyc
