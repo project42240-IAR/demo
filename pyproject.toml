@@ -1,25 +1,31 @@
 [project]
 name = "fake-social-media-detection"
 version = "0.1.0"
-description = "Fake Social Media Account Detection and Reporting System"
-requires-python = ">=3.12"
+description = "AI-assisted fake social media account detection and reporting system"
+requires-python = ">=3.12,<3.13"
+
 dependencies = [
-	"Flask>=3.0.0",
-	"scikit-learn>=1.5.0",
-	"pandas>=2.2.0",
-	"numpy>=1.26.0",
-	"joblib>=1.4.0",
-	"supabase>=2.0.0",
-	"cryptography>=42.0.0",
-	"python-dotenv>=1.0.0",
-	"requests>=2.32.0",
-	"beautifulsoup4>=4.12.0",
-	"web3>=6.15.0",
+    "fastapi",
+    "uvicorn[standard]",
+    "pymongo",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "python-multipart",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "joblib"
 ]
 
-[tool.vercel]
-entrypoint = "wsgi:app"
-
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.vercel]
+entrypoint = "api.index:app"
