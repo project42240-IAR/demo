@@ -51,6 +51,10 @@ function switchTab(tabId) {
     loadDashboardStats();
   } else if (tabId === 'cases' || tabId === 'reports') {
     loadCases();
+  } else if (tabId === 'detection') {
+    renderDetectionTab();
+  } else if (tabId === 'evidence') {
+    loadEvidence();
   }
 }
 
@@ -229,21 +233,145 @@ function renderResult(data) {
   }
 }
 
+// ---------- RENDER DETECTION TAB ---------- //
+function renderDetectionTab() {
+  const consensusList = document.getElementById('consensus-list');
+  const matrixBody = document.getElementById('engine-matrix-body');
+  if (!consensusList || !matrixBody) return;
+
+  // Clear existing
+  consensusList.innerHTML = '';
+  matrixBody.innerHTML = '';
+
+  if (!lastAssessment) {
+    consensusList.innerHTML = '<li>Run a profile analysis under Analyze to populate consensus signals.</li>';
+    matrixBody.innerHTML = '<tr class="empty-row"><td colspan="4">No analysis yet — run a profile scan to populate matrix.</td></tr>';
+    return;
+  }
+
+  // Consensus signals
+  const consensus = lastAssessment.consensus_signals || lastAssessment.consensus || lastAssessment.signals || [];
+  if (consensus && consensus.length > 0) {
+    consensus.forEach((s) => {
+      const li = document.createElement('li');
+      li.textContent = s;
+      consensusList.appendChild(li);
+    });
+  } else if (lastAssessment.reasons && lastAssessment.reasons.length > 0) {
+    lastAssessment.reasons.forEach((r) => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      consensusList.appendChild(li);
+    });
+  } else {
+    consensusList.innerHTML = '<li>No consensus signals were produced for this profile.</li>';
+  }
+
+  // Engine matrix: prefer explicit engine_matrix, fallback to engines list or single row
+  const matrix = lastAssessment.engine_matrix || lastAssessment.engines || null;
+  if (matrix && typeof matrix === 'object') {
+    Object.keys(matrix).forEach((eng) => {
+      const row = document.createElement('tr');
+      const info = matrix[eng] || {};
+      const verdict = info.verdict || info.result || (info.score && info.score >= 70 ? 'SUSPICIOUS' : 'OK');
+      const score = typeof info.score === 'number' ? Math.round(info.score) : (info.score || '—');
+      const notes = info.note || info.details || info.reason || '';
+      row.innerHTML = `<td>${eng}</td><td>${verdict}</td><td>${score}</td><td>${notes}</td>`;
+      matrixBody.appendChild(row);
+    });
+  } else if (Array.isArray(matrix)) {
+    matrix.forEach((m) => {
+      const row = document.createElement('tr');
+      const eng = m.engine || m.name || 'engine';
+      const verdict = m.verdict || '—';
+      const score = typeof m.score === 'number' ? Math.round(m.score) : (m.score || '—');
+      const notes = m.note || m.details || '';
+      row.innerHTML = `<td>${eng}</td><td>${verdict}</td><td>${score}</td><td>${notes}</td>`;
+      matrixBody.appendChild(row);
+    });
+  } else {
+    // Single overall row
+    const row = document.createElement('tr');
+    const verdict = lastAssessment.verdict || '—';
+    const score = typeof lastAssessment.final_score === 'number' ? Math.round(lastAssessment.final_score) : '—';
+    const notes = (lastAssessment.model_score ? `ML: ${lastAssessment.model_score}` : '') + (lastAssessment.rule_score ? `; Rule: ${lastAssessment.rule_score}` : '');
+    row.innerHTML = `<td>Aggregate</td><td>${verdict}</td><td>${score}</td><td>${notes}</td>`;
+    matrixBody.appendChild(row);
+  }
+}
+
 if (form) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = formToPayload();
-    const res = await fetch('/api/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      alert('Scan failed — check the input values.');
-      return;
+    let res;
+    let data;
+
+    // If a username or profile-like input exists, call the profile analyzer
+    // endpoint which saves the analysis to the database so dashboard/cases
+    // reflect real data. Otherwise fall back to the stateless /api/scan.
+    try {
+      const hasUsername = payload.username && payload.username.trim().length > 0;
+      const looksLikeUrl = payload.username && (payload.username.includes('http') || payload.username.includes('.') );
+
+      if (hasUsername) {
+        // Prefer the analyzer which persists results
+        res = await fetch('/api/profile/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: payload.username }),
+        });
+        if (!res.ok) {
+          // Fallback to local stateless scan if analyzer failed
+          res = await fetch('/api/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
+      } else {
+        res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!res.ok) {
+        alert('Scan failed — check the input values.');
+        return;
+      }
+
+      data = await res.json();
+
+      // The analyzer returns a saved payload object which may include
+      // `analysis` or an `analysis`-like structure. Normalize for render.
+      const analysis = data.analysis || data.analysis_data || data.analysis_result || data;
+      renderResult(analysis);
+
+      // If the user requested auto-file or score is high, file a case so it appears in cases list
+      try {
+        const autoFile = document.getElementById('auto-file-case');
+        const shouldAutoFile = (autoFile && autoFile.checked) || (analysis && analysis.final_score >= 70);
+        if (shouldAutoFile && lastAssessment) {
+          // Send to /api/report to persist as a case
+          await fetch('/api/report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assessment: lastAssessment }),
+          });
+        }
+      } catch (err) {
+        console.error('Auto-file case failed', err);
+      }
+
+      // Refresh dashboard and cases so the new analysis appears
+      loadDashboardStats();
+      loadCases();
+    } catch (err) {
+      console.error('Scan error', err);
+      alert('Scan failed — network or server error.');
     }
-    const data = await res.json();
-    renderResult(data);
   });
 }
 
@@ -456,3 +584,110 @@ if (apiAnalyzeBtn && apiInputUrl) {
 // INITIALIZATION
 loadDashboardStats();
 loadCases();
+// Evidence
+const evidenceRefreshBtn = document.getElementById('refresh-evidence');
+const evidenceTbody = document.getElementById('evidence-tbody');
+
+async function loadEvidence() {
+  if (!evidenceTbody) return;
+  evidenceTbody.innerHTML = '';
+  try {
+    const res = await fetch('/api/evidence');
+    if (!res.ok) throw new Error('Failed to fetch evidence');
+    const data = await res.json();
+    if (!data || data.length === 0) {
+      evidenceTbody.innerHTML = '<tr class="empty-row"><td colspan="7">No on-chain evidence logged yet.</td></tr>';
+      return;
+    }
+
+    data.forEach((entry) => {
+      const caseId = entry.case_id || 'N/A';
+      const user = entry.username || 'unknown';
+      const platform = entry.platform || 'generic';
+      const filed = new Date(entry.reported_at).toLocaleString();
+      // Each chain_receipts is a list; render the most recent per case as primary row
+      const receipts = entry.chain_receipts || [];
+      receipts.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        const payload = r.payload_hash || r.payloadHash || '';
+        const tx = r.tx_hash || r.txHash || r.tx || '';
+        const block = r.block_number || r.blockNumber || r.block || '';
+        tr.innerHTML = `
+          <td>#${caseId}${idx>0?` (v${idx+1})`:''}</td>
+          <td>${user}</td>
+          <td>${platform}</td>
+          <td style="font-family:var(--mono);">${payload}</td>
+          <td style="font-family:var(--mono);">${tx}</td>
+          <td>${block}</td>
+          <td>${filed}</td>
+        `;
+        evidenceTbody.appendChild(tr);
+      });
+    });
+  } catch (err) {
+    console.error('Failed to load evidence', err);
+    evidenceTbody.innerHTML = '<tr class="empty-row"><td colspan="7">Error loading evidence.</td></tr>';
+  }
+}
+
+if (evidenceRefreshBtn) evidenceRefreshBtn.addEventListener('click', loadEvidence);
+
+// ---------- USERNAME AUTO-FILL (form.username) ---------- //
+const usernameInput = document.getElementById('form-username');
+const usernameSpinner = document.getElementById('username-fetch-spinner');
+let usernameDebounce = null;
+
+async function fetchProfileByUsername(username) {
+  if (!username) return;
+  try {
+    if (usernameSpinner) usernameSpinner.style.display = 'inline-block';
+    const res = await fetch('/api/profile/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: username }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) return;
+
+    const p = data.profile || {};
+    if (form) {
+      if (p.username) form.username.value = p.username;
+      if (p.displayName) form.display_name.value = p.displayName;
+      if (p.platform) {
+        const pName = p.platform.toLowerCase();
+        if (pName === 'instagram') form.platform.value = 'Instagram';
+        else if (pName === 'x') form.platform.value = 'X / Twitter';
+        else if (pName === 'facebook') form.platform.value = 'Facebook';
+        else form.platform.value = 'generic';
+      }
+      if (p.followers !== undefined && p.followers !== null) form.followers.value = p.followers;
+      if (p.following !== undefined && p.following !== null) form.following.value = p.following;
+      if (p.postsCount !== undefined && p.postsCount !== null) form.posts_count.value = p.postsCount;
+      if (p.bio) form.bio.value = p.bio;
+      if (p.account_age_days) form.account_age_days.value = p.account_age_days;
+      if (p.avg_posts_per_day) form.avg_posts_per_day.value = p.avg_posts_per_day;
+      if (p.engagement_rate) form.engagement_rate.value = p.engagement_rate;
+      if (typeof p.has_profile_pic !== 'undefined') form.has_profile_pic.checked = !!p.has_profile_pic;
+    }
+    if (data.analysis) renderResult(data.analysis);
+  } catch (err) {
+    console.error('Username fetch failed', err);
+  } finally {
+    if (usernameSpinner) usernameSpinner.style.display = 'none';
+  }
+}
+
+if (usernameInput) {
+  usernameInput.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    if (usernameDebounce) clearTimeout(usernameDebounce);
+    if (!val) return;
+    usernameDebounce = setTimeout(() => fetchProfileByUsername(val), 800);
+  });
+  usernameInput.addEventListener('blur', (e) => {
+    const val = e.target.value.trim();
+    if (!val) return;
+    if (usernameDebounce) clearTimeout(usernameDebounce);
+    fetchProfileByUsername(val);
+  });
+}

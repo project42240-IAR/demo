@@ -1,16 +1,17 @@
 :root {
-  --bg: #070a12;
-  --panel: #0f172a;
-  --panel-raised: #1e293b;
-  --line: rgba(56, 189, 248, 0.15);
-  --text: #f1f5f9;
-  --muted: #94a3b8;
-  --muted-2: #64748b;
-  --cyan: #38bdf8;
+  /* Light theme (user request): white background, darker text */
+  --bg: #ffffff;
+  --panel: #f8fafc;
+  --panel-raised: #eef2f7;
+  --line: rgba(15, 23, 42, 0.06);
+  --text: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --cyan: #0ea5e9;
   --amber: #f59e0b;
-  --red: #f43f5e;
-  --purple: #a855f7;
-  --indigo: #6366f1;
+  --red: #ef4444;
+  --purple: #7c3aed;
+  --indigo: #4f46e5;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', -apple-system, sans-serif;
 }
@@ -24,6 +25,7 @@ body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  animation: fadeInBg 420ms ease both;
 }
 
 /* Ambient scanline texture */
@@ -34,10 +36,10 @@ body {
   z-index: 999;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(56, 189, 248, 0.012) 0px,
-    rgba(56, 189, 248, 0.012) 1px,
+    rgba(15, 23, 42, 0.02) 0px,
+    rgba(15, 23, 42, 0.02) 1px,
     transparent 1px,
-    transparent 3px
+    transparent 4px
   );
   mix-blend-mode: overlay;
 }
@@ -51,7 +53,7 @@ body {
 /* ---------- SIDEBAR ---------- */
 .sidebar {
   width: 250px;
-  background: #0b1120;
+  background: var(--panel-raised);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -81,7 +83,7 @@ body {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 15px;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: 0.08em;
 }
 
@@ -120,7 +122,7 @@ body {
 .nav-item.active {
   background: linear-gradient(90deg, rgba(56, 189, 248, 0.15), rgba(56, 189, 248, 0.04));
   border-left: 3px solid var(--cyan);
-  color: #ffffff;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -153,6 +155,11 @@ body {
 
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
+@keyframes fadeInBg {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ---------- MAIN WRAPPER & TOP HEADER ---------- */
 .main-wrapper {
   flex: 1;
@@ -166,7 +173,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 18px 32px;
-  background: #0f172a;
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
 
@@ -174,7 +181,7 @@ body {
   font-size: 18px;
   font-weight: 700;
   margin: 0 0 2px 0;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .ps-ref {
@@ -198,7 +205,7 @@ body {
 .notif-btn {
   background: var(--panel-raised);
   border: 1px solid var(--line);
-  color: #ffffff;
+  color: var(--text);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 16px;
@@ -228,7 +235,7 @@ body {
   top: 48px;
   right: 0;
   width: 320px;
-  background: #141e33;
+  background: var(--panel-raised);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
@@ -284,7 +291,7 @@ body {
   border: 1px solid var(--line);
   padding: 6px 14px;
   border-radius: 20px;
-  color: #ffffff;
+  color: var(--text);
   font-family: var(--sans);
   font-size: 13px;
   cursor: pointer;
@@ -304,7 +311,7 @@ body {
   top: 48px;
   right: 0;
   width: 180px;
-  background: #141e33;
+  background: var(--panel-raised);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
@@ -394,7 +401,7 @@ body {
 
 .kpi-content { display: flex; flex-direction: column; }
 .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-.kpi-value { font-family: var(--mono); font-size: 28px; font-weight: 700; color: #ffffff; margin-top: 2px; }
+.kpi-value { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--text); margin-top: 2px; }
 
 /* DASHBOARD OVERVIEW GRID */
 .dashboard-grid {
@@ -482,7 +489,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ffffff;
+  color: var(--text);
 }
 .panel-head .idx {
   font-family: var(--mono);

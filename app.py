@@ -56,27 +56,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sentry_super_secret_key_2026_sih")
 
 
-# --------------------------------------------------------------------------- #
-# Startup – initialise indexes once the Flask app context is available
-# --------------------------------------------------------------------------- #
-
-with app.app_context():
-    try:
-        db.init_indexes()
-        # One-shot migration: import existing case_log.json if present
-        legacy_path = os.path.join(BASE_DIR, "case_log.json")
-        if os.path.exists(legacy_path):
-            migrated = db.migrate_from_json(legacy_path)
-            if migrated:
-                app.logger.info(
-                    "Migrated %d case(s) from case_log.json into Supabase.", migrated
-                )
-    except Exception as exc:  # pragma: no cover
-        app.logger.error(
-            "Database initialisation failed: %s — the app will start but "
-            "all database operations will fail until Supabase is reachable.",
-            exc,
-        )
+# NOTE: Database/index initialisation is performed when the app is run
+# directly (under `if __name__ == '__main__'`) to avoid running networked
+# startup logic at import time. Keeping heavy init out of module import
+# prevents Vercel or WSGI import attempts from failing when env vars or
+# external services are unavailable.
 
 
 # --------------------------------------------------------------------------- #
@@ -485,6 +469,13 @@ def update_status(case_id):
                 "BLOCKCHAIN LOG FAILED for case_id=%s: %s",
                 case_id, chain_receipt.error,
             )
+        else:
+            # Persist the successful chain receipt into the case record so the
+            # Evidence tab and exports can display immutable on-chain receipts.
+            try:
+                db.append_chain_receipt(case_id, chain_receipt.to_dict())
+            except Exception as exc:
+                app.logger.warning("Failed to persist chain_receipt for %s: %s", case_id, exc)
 
     response = _case_to_api_response(updated)
     if chain_receipt is not None:
@@ -505,6 +496,29 @@ def get_audit_log(case_id):
             e["timestamp"] = e["timestamp"].isoformat()
         serialised.append(e)
     return jsonify(serialised)
+
+
+@app.route("/api/evidence", methods=["GET"])
+def list_evidence():
+    """
+    Return on-chain evidence receipts attached to cases.
+
+    Response format: [ { case_id, username, platform, reported_at, chain_receipts: [...] }, ... ]
+    """
+    cases = db.list_cases()
+    out = []
+    for c in cases:
+        receipts = c.get("chain_receipts") or []
+        if not receipts:
+            continue
+        out.append({
+            "case_id": c.get("case_id"),
+            "username": c.get("username"),
+            "platform": c.get("platform"),
+            "reported_at": c.get("reported_at"),
+            "chain_receipts": receipts,
+        })
+    return jsonify(out)
 
 
 @app.route("/api/reports/export", methods=["GET"])
@@ -545,4 +559,23 @@ def export_reports():
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
+    # Perform startup initialisation under direct-run only so importing
+    # this module (for WSGI/Vercel) doesn't execute network operations.
+    try:
+        with app.app_context():
+            db.init_indexes()
+            legacy_path = os.path.join(BASE_DIR, "case_log.json")
+            if os.path.exists(legacy_path):
+                migrated = db.migrate_from_json(legacy_path)
+                if migrated:
+                    app.logger.info(
+                        "Migrated %d case(s) from case_log.json into Supabase.", migrated
+                    )
+    except Exception as exc:  # pragma: no cover
+        app.logger.error(
+            "Database initialisation failed: %s — the app will start but "
+            "all database operations will fail until Supabase is reachable.",
+            exc,
+        )
+
     app.run(debug=True, port=5000)

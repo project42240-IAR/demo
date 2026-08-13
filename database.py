@@ -357,6 +357,43 @@ def update_case_status(
     return current
 
 
+def append_chain_receipt(case_id: str, receipt: dict) -> dict | None:
+    """
+    Append a blockchain chain receipt to a case's `chain_receipts` list and persist.
+
+    The receipt dict will be stored encrypted so the DB never exposes raw data
+    to unauthorised callers. Returns the updated case dict, or None if case
+    not found.
+    """
+    current = get_case(case_id)
+    if current is None:
+        return None
+
+    receipts = current.get("chain_receipts") or []
+    if not isinstance(receipts, list):
+        receipts = [receipts]
+
+    receipts.append(receipt)
+    current["chain_receipts"] = receipts
+    _MEMORY_CASES[case_id] = current
+
+    # Persist just the chain_receipts field (encrypted)
+    try:
+        get_client().table("cases").update({"chain_receipts": _encrypt(receipts)}).eq("case_id", case_id).execute()
+    except Exception as exc:
+        logger.warning("append_chain_receipt Supabase update failed for %s: %s", case_id, exc)
+
+    _write_audit(
+        case_id=case_id,
+        reviewer=receipt.get("reviewer", "system"),
+        action="chain_receipt_added",
+        old_value=None,
+        new_value=receipt,
+    )
+
+    return current
+
+
 # --------------------------------------------------------------------------- #
 # Public API – Audit Logs
 # --------------------------------------------------------------------------- #

@@ -266,7 +266,7 @@
           <!-- LEFT: input panel -->
           <div class="panel input-panel">
             <div class="url-intake-box" style="margin-bottom: 20px; padding: 16px; background: rgba(56, 189, 248, 0.05); border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 10px;">
-              <label style="font-weight: 600; color: #ffffff; margin-bottom: 8px;">
+              <label style="font-weight: 600; color: var(--text); margin-bottom: 8px;">
                 ⚡ Multi-Platform Profile API Analysis (Instagram, X, TikTok, Facebook, YouTube)
               </label>
               <div style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
@@ -284,7 +284,10 @@
             <form id="scan-form">
               <div class="grid-2">
                 <label>Username
-                  <input type="text" name="username" placeholder="e.g. rahul_sharma92" required />
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <input id="form-username" type="text" name="username" placeholder="e.g. rahul_sharma92" required />
+                    <span id="username-fetch-spinner" style="display:none; width:16px; height:16px; border:2px solid var(--cyan); border-top-color:transparent; border-radius:50%;" aria-hidden="true"></span>
+                  </div>
                 </label>
                 <label>Display name
                   <input type="text" name="display_name" placeholder="e.g. Rahul Sharma" />
@@ -340,6 +343,10 @@
 
               <div class="actions">
                 <button type="submit" class="btn-primary">Run Detection Scan</button>
+                <label style="display:flex; align-items:center; gap:8px; margin-left:8px;">
+                  <input id="auto-file-case" type="checkbox" />
+                  <span style="font-size:13px; color:var(--muted);">File case if flagged</span>
+                </label>
                 <button type="button" id="demo-fake" class="btn-ghost">Load suspicious example</button>
                 <button type="button" id="demo-real" class="btn-ghost">Load genuine example</button>
               </div>
@@ -402,6 +409,24 @@
           </div>
           <div style="padding: 20px; color: var(--text-muted);">
             <p>The detection engine blends internal rule heuristics with trained random forest classifier weights. Submit an account profile under <strong>Analyze</strong> to populate consensus signals.</p>
+            <div id="detection-content" style="margin-top:16px;">
+              <h4>Consensus Signals</h4>
+              <div id="consensus-signals" style="margin-bottom:12px;">
+                <ul id="consensus-list" style="list-style:disc; padding-left:18px; color:var(--text);"></ul>
+              </div>
+
+              <h4>Engine Matrix</h4>
+              <div style="overflow:auto;">
+                <table id="engine-matrix" class="small-table">
+                  <thead>
+                    <tr><th>Engine</th><th>Verdict</th><th>Score</th><th>Notes</th></tr>
+                  </thead>
+                  <tbody id="engine-matrix-body">
+                    <tr class="empty-row"><td colspan="4">No analysis yet — run a profile scan to populate matrix.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -479,6 +504,19 @@
           </div>
           <div style="padding: 20px; font-family: var(--mono); font-size: 13px; color: var(--muted);">
             <p>✔️ Status transitions ("Escalated to Platform", "Account Suspended") generate an immutable SHA-256 evidence payload hash committed to the blockchain network.</p>
+            <div style="margin-top:12px;">
+              <button id="refresh-evidence" class="btn-ghost small">Refresh Evidence</button>
+            </div>
+            <div style="margin-top:16px;">
+              <table id="evidence-table" class="small-table">
+                <thead>
+                  <tr><th>Case</th><th>Account</th><th>Platform</th><th>Payload Hash</th><th>Tx</th><th>Block</th><th>Filed</th></tr>
+                </thead>
+                <tbody id="evidence-tbody">
+                  <tr class="empty-row"><td colspan="7">No on-chain evidence logged yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
