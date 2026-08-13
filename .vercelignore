@@ -1,0 +1,14 @@
+# Vercel Deployment Ignore
+.env
+.env.local
+.env.*.local
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.git/
+.github/
+model/*.joblib
+node_modules/
+*.log
