@@ -555,27 +555,37 @@ def export_reports():
 
 
 # --------------------------------------------------------------------------- #
-# Dev server
+# App initialisation
 # --------------------------------------------------------------------------- #
 
-if __name__ == "__main__":
-    # Perform startup initialisation under direct-run only so importing
-    # this module (for WSGI/Vercel) doesn't execute network operations.
+def init_app(app_to_init):
+    """
+    Perform startup initialisation.
+    Called once when the module is imported by WSGI/Vercel.
+    """
     try:
-        with app.app_context():
+        with app_to_init.app_context():
             db.init_indexes()
             legacy_path = os.path.join(BASE_DIR, "case_log.json")
             if os.path.exists(legacy_path):
                 migrated = db.migrate_from_json(legacy_path)
                 if migrated:
-                    app.logger.info(
+                    app_to_init.logger.info(
                         "Migrated %d case(s) from case_log.json into Supabase.", migrated
                     )
     except Exception as exc:  # pragma: no cover
-        app.logger.error(
+        app_to_init.logger.error(
             "Database initialisation failed: %s — the app will start but "
             "all database operations will fail until Supabase is reachable.",
             exc,
         )
 
+init_app(app)
+
+
+# --------------------------------------------------------------------------- #
+# Dev server
+# --------------------------------------------------------------------------- #
+
+if __name__ == "__main__":
     app.run(debug=True, port=5000)
