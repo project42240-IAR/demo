@@ -1,5 +1,5 @@
 [tool.vercel]
-entrypoint = "wsgi.py:app"
+entrypoint = "wsgi:app"
 
 [build-system]
 requires = ["setuptools", "wheel"]
