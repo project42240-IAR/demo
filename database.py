@@ -31,14 +31,19 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from dotenv import load_dotenv, set_key
+from werkzeug.security import generate_password_hash, check_password_hash
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
+
+# Fallback local memory store for users when Supabase table is unavailable
+_MEMORY_USERS: dict[str, dict] = {}
 
 # --------------------------------------------------------------------------- #
 # .env bootstrap
@@ -392,6 +397,105 @@ def list_audit_logs(case_id: str | None = None) -> list[dict]:
     except Exception as exc:
         logger.error("list_audit_logs failed: %s", exc)
         return []
+
+
+# --------------------------------------------------------------------------- #
+# User Management & Authentication Layer
+# --------------------------------------------------------------------------- #
+
+def get_user_by_email(email: str) -> dict | None:
+    """Fetch user record by email address (from Supabase users table or fallback store)."""
+    clean_email = email.strip().lower()
+    try:
+        res = get_client().table("users").select("*").eq("email", clean_email).execute()
+        if res.data and len(res.data) > 0:
+            return res.data[0]
+    except Exception as exc:
+        logger.debug("get_user_by_email Supabase query fallback: %s", exc)
+
+    return _MEMORY_USERS.get(clean_email)
+
+
+def create_user(
+    email: str,
+    password: str,
+    full_name: str = "Security Analyst",
+    role: str = "analyst",
+) -> dict:
+    """
+    Register and store a new user account with hashed password.
+    Raises ValueError if email is already registered.
+    """
+    clean_email = email.strip().lower()
+    if get_user_by_email(clean_email):
+        raise ValueError("An account with this email address already exists.")
+
+    password_hash = generate_password_hash(password)
+    user_id = str(uuid.uuid4())[:12]
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    user_record = {
+        "id": user_id,
+        "email": clean_email,
+        "password_hash": password_hash,
+        "full_name": full_name.strip() or "Security Analyst",
+        "role": role.strip() or "analyst",
+        "created_at": now_iso,
+        "last_login": now_iso,
+    }
+
+    _MEMORY_USERS[clean_email] = user_record
+
+    try:
+        get_client().table("users").insert(user_record).execute()
+        logger.info("User registered in Supabase: %s", clean_email)
+    except Exception as exc:
+        logger.warning(
+            "Supabase insert for user failed (using memory store): %s", exc
+        )
+
+    # Return safe user dict without password hash
+    safe_user = dict(user_record)
+    safe_user.pop("password_hash", None)
+    return safe_user
+
+
+def update_last_login(email: str) -> None:
+    """Update last_login timestamp for a user."""
+    clean_email = email.strip().lower()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if clean_email in _MEMORY_USERS:
+        _MEMORY_USERS[clean_email]["last_login"] = now_iso
+
+    try:
+        get_client().table("users").update({"last_login": now_iso}).eq("email", clean_email).execute()
+    except Exception as exc:
+        logger.debug("update_last_login Supabase update failed: %s", exc)
+
+
+def verify_user_credentials(email: str, password: str) -> dict | None:
+    """
+    Verify user login credentials against stored password hash.
+    Returns safe user info dict on success, None on failure.
+    """
+    clean_email = email.strip().lower()
+
+    # Pre-seed default admin account for quick demo access
+    if clean_email == "admin@sentry.gov" and not get_user_by_email(clean_email):
+        create_user("admin@sentry.gov", "admin123", full_name="Admin Director", role="admin")
+
+    user = get_user_by_email(clean_email)
+    if not user:
+        return None
+
+    if check_password_hash(user["password_hash"], password):
+        update_last_login(clean_email)
+        safe_user = dict(user)
+        safe_user.pop("password_hash", None)
+        return safe_user
+
+    return None
 
 
 # --------------------------------------------------------------------------- #

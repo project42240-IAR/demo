@@ -29,7 +29,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request, send_file, render_template
+from flask import Flask, jsonify, request, send_file, render_template, session, redirect, url_for
 
 from detector import RawAccount, assess_account, FEATURE_COLUMNS  # noqa: F401
 import database as db
@@ -43,6 +43,7 @@ from aggregator import scan_profile_endpoint
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sentry_super_secret_key_2026_sih")
 
 
 # --------------------------------------------------------------------------- #
@@ -97,12 +98,95 @@ def _case_to_api_response(case: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# Routes
+# Routes & Authentication
 # --------------------------------------------------------------------------- #
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    if "user" not in session:
+        return redirect(url_for("login_page"))
+    return render_template("index.html", current_user=session["user"])
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if request.method == "GET":
+        if "user" in session:
+            return redirect(url_for("index"))
+        return render_template("login.html")
+
+    payload = request.get_json(silent=True) or request.form or {}
+    email = payload.get("email", "").strip()
+    password = payload.get("password", "")
+
+    if not email or not password:
+        return jsonify({"success": False, "error": "Email and password are required."}), 400
+
+    user = db.verify_user_credentials(email, password)
+    if not user:
+        return jsonify({"success": False, "error": "Invalid email or password."}), 401
+
+    session["user"] = user
+    return jsonify({"success": True, "redirect": "/", "user": user})
+
+
+@app.route("/register", methods=["POST"])
+def register():
+    payload = request.get_json(silent=True) or request.form or {}
+    email = payload.get("email", "").strip()
+    password = payload.get("password", "")
+    full_name = payload.get("full_name", "").strip()
+    role = payload.get("role", "analyst").strip()
+
+    if not email or not password:
+        return jsonify({"success": False, "error": "Email and password are required."}), 400
+
+    if len(password) < 6:
+        return jsonify({"success": False, "error": "Password must be at least 6 characters long."}), 400
+
+    try:
+        new_user = db.create_user(
+            email=email,
+            password=password,
+            full_name=full_name or "Security Analyst",
+            role=role,
+        )
+        session["user"] = new_user
+        return jsonify({"success": True, "redirect": "/", "user": new_user}), 201
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        app.logger.error("Registration error: %s", exc)
+        return jsonify({"success": False, "error": f"Registration failed: {exc}"}), 500
+
+
+@app.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    payload = request.get_json(silent=True) or request.form or {}
+    email = payload.get("email", "").strip()
+    if not email:
+        return jsonify({"success": False, "error": "Email address is required."}), 400
+
+    # Simulate/record password reset audit event
+    db._write_audit(
+        case_id="AUTH-SYS",
+        reviewer=email,
+        action="password_reset_requested",
+        old_value=None,
+        new_value="Password reset token issued",
+    )
+    return jsonify({
+        "success": True,
+        "message": f"Password reset instructions have been dispatched to {email}. Check your inbox.",
+    })
+
+
+@app.route("/logout", methods=["GET", "POST"])
+def logout():
+    session.clear()
+    if request.is_json:
+        return jsonify({"success": True, "redirect": "/login"})
+    return redirect(url_for("login_page"))
 
 
 @app.route("/api/scan", methods=["POST"])

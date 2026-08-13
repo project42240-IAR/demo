@@ -39,9 +39,23 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_logs_case_id ON public.audit_logs (case_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs (timestamp DESC);
 
--- 3. Enable RLS and Grant Access Policies
+-- 3. Users Table
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT,
+    role TEXT DEFAULT 'analyst',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+
+-- 4. Enable RLS and Grant Access Policies
 ALTER TABLE public.cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Allow full access for service_role / anon key in this application
 DROP POLICY IF EXISTS "Allow full access on cases" ON public.cases;
@@ -49,3 +63,6 @@ CREATE POLICY "Allow full access on cases" ON public.cases FOR ALL TO anon, auth
 
 DROP POLICY IF EXISTS "Allow full access on audit_logs" ON public.audit_logs;
 CREATE POLICY "Allow full access on audit_logs" ON public.audit_logs FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access on users" ON public.users;
+CREATE POLICY "Allow full access on users" ON public.users FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);

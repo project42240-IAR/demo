@@ -75,6 +75,31 @@ body {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 .ps-ref { color: var(--muted-2); }
 
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: #f1f5f9;
+}
+.user-avatar { font-size: 14px; }
+.user-name { font-weight: 500; color: #38bdf8; }
+.btn-logout {
+  color: #f43f5e;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  transition: opacity 0.2s;
+}
+.btn-logout:hover { opacity: 0.8; text-decoration: underline; }
+
 /* ---------- layout ---------- */
 .layout {
   display: grid;

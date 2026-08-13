@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTRY — Login | Fake Account Detection Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --panel-bg: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(56, 189, 248, 0.2);
+      --panel-glow: rgba(56, 189, 248, 0.15);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-green: #10b981;
+      --accent-danger: #f43f5e;
+      --input-bg: rgba(30, 41, 59, 0.6);
+      --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-code: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Ambient cyber background animation */
+    .bg-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(to right, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-glow-1 {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      top: -100px;
+      left: -100px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 70%);
+      filter: blur(80px);
+      animation: pulseGlow 10s infinite alternate ease-in-out;
+      pointer-events: none;
+    }
+
+    .bg-glow-2 {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      bottom: -150px;
+      right: -150px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%);
+      filter: blur(90px);
+      animation: pulseGlow 12s infinite alternate-reverse ease-in-out;
+      pointer-events: none;
+    }
+
+    @keyframes pulseGlow {
+      0% { transform: scale(1) translate(0, 0); opacity: 0.7; }
+      100% { transform: scale(1.2) translate(30px, 30px); opacity: 1; }
+    }
+
+    /* Main Container */
+    .auth-container {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+      perspective: 1000px;
+    }
+
+    /* Card Styling */
+    .auth-card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.6),
+        0 0 30px var(--panel-glow);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+    }
+
+    /* Header Section */
+    .auth-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .shield-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 16px;
+      font-size: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+      animation: shieldPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes shieldPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(56, 189, 248, 0.2); }
+      50% { transform: scale(1.06); box-shadow: 0 0 35px rgba(56, 189, 248, 0.4); }
+    }
+
+    .auth-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .auth-subtitle {
+      font-size: 13px;
+      color: var(--accent-cyan);
+      font-weight: 500;
+      margin-top: 6px;
+      letter-spacing: 0.4px;
+      font-family: var(--font-code);
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    /* Alerts */
+    .alert-banner {
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .alert-banner.error {
+      display: block;
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fecdd3;
+    }
+
+    .alert-banner.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #a7f3d0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-muted);
+      font-size: 16px;
+      pointer-events: none;
+      transition: color 0.3s;
+    }
+
+    .form-control {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px 14px 14px 44px;
+      font-size: 14px;
+      color: var(--text-main);
+      font-family: var(--font-body);
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+      background: rgba(30, 41, 59, 0.85);
+    }
+
+    .form-control:focus + .input-icon,
+    .form-control:focus ~ .input-icon {
+      color: var(--accent-cyan);
+    }
+
+    .toggle-pass {
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      transition: color 0.3s;
+    }
+
+    .toggle-pass:hover {
+      color: var(--text-main);
+    }
+
+    /* Buttons */
+    .btn-login {
+      width: 100%;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #ffffff;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .btn-login:hover {
+      background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(56, 189, 248, 0.5);
+    }
+
+    .btn-login:active {
+      transform: translateY(0);
+    }
+
+    /* Extra Action Links */
+    .auth-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      font-size: 13px;
+    }
+
+    .auth-link {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      transition: color 0.3s;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .auth-link:hover {
+      color: #7dd3fc;
+      text-decoration: underline;
+    }
+
+    .auth-switch {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .demo-login-box {
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    .btn-demo {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-family: var(--font-code);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-demo:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Card Flip / View Switcher */
+    .auth-view {
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .hidden-view {
+      display: none;
+      opacity: 0;
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      
+      <!-- Header -->
+      <div class="auth-header">
+        <div class="shield-badge">🛡️</div>
+        <h1 class="auth-title">FAKE ACCOUNT DETECTION</h1>
+        <p class="auth-subtitle">AI-Powered Social Media Monitoring</p>
+      </div>
+
+      <!-- Notification Banner -->
+      <div id="alert-banner" class="alert-banner"></div>
+
+      <!-- LOGIN FORM VIEW -->
+      <div id="login-view" class="auth-view">
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <div class="input-wrapper">
+              <input type="email" id="login-email" class="form-control" placeholder="analyst@agency.gov" required />
+              <span class="input-icon">✉️</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="login-password" class="form-control" placeholder="••••••••" required />
+              <span class="input-icon">🔒</span>
+              <button type="button" class="toggle-pass" onclick="togglePasswordVisibility('login-password', this)">👁️</button>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-submit-login" class="btn-login">
+            <span class="spinner" id="login-spinner"></span>
+            <span>LOGIN</span>
+          </button>
+
+          <div class="auth-actions">
+            <div></div>
+            <a class="auth-link" onclick="handleForgotPassword()">Forgot Password?</a>
+          </div>
+        </form>
+
+        <div class="auth-switch">
+          Don't have an account? <a class="auth-link" onclick="switchView('register')">Register</a>
+        </div>
+
+        <div class="demo-login-box">
+          <button type="button" class="btn-demo" onclick="autoFillDemo()">⚡ Auto-fill Demo Credentials (admin@sentry.gov)</button>
+        </div>
+      </div>
+
+      <!-- REGISTER FORM VIEW -->
+      <div id="register-view" class="auth-view hidden-view">
+        <form id="register-form">
+          <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <div class="input-wrapper">
+              <input type="text" id="reg-name" class="form-control" placeholder="Alex Morgan" required />
+              <span class="input-icon">👤</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <div class="input-wrapper">
+              <input type="email" id="reg-email" class="form-control" placeholder="alex@agency.gov" required />
+              <span class="input-icon">✉️</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="reg-password" class="form-control" placeholder="At least 6 characters" required minlength="6" />
+              <span class="input-icon">🔒</span>
+              <button type="button" class="toggle-pass" onclick="togglePasswordVisibility('reg-password', this)">👁️</button>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-submit-reg" class="btn-login">
+            <span class="spinner" id="reg-spinner"></span>
+            <span>CREATE ACCOUNT</span>
+          </button>
+        </form>
+
+        <div class="auth-switch">
+          Already have an account? <a class="auth-link" onclick="switchView('login')">Login</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function showAlert(msg, isSuccess = false) {
+      const banner = document.getElementById('alert-banner');
+      banner.textContent = msg;
+      banner.className = 'alert-banner ' + (isSuccess ? 'success' : 'error');
+    }
+
+    function hideAlert() {
+      const banner = document.getElementById('alert-banner');
+      banner.style.display = 'none';
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    function switchView(viewName) {
+      hideAlert();
+      const loginView = document.getElementById('login-view');
+      const regView = document.getElementById('register-view');
+      
+      if (viewName === 'register') {
+        loginView.classList.add('hidden-view');
+        regView.classList.remove('hidden-view');
+      } else {
+        regView.classList.add('hidden-view');
+        loginView.classList.remove('hidden-view');
+      }
+    }
+
+    function autoFillDemo() {
+      document.getElementById('login-email').value = 'admin@sentry.gov';
+      document.getElementById('login-password').value = 'admin123';
+      showAlert('Demo credentials filled! Click LOGIN.', true);
+    }
+
+    async function handleForgotPassword() {
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) {
+        showAlert('Please enter your email address first.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert(data.message, true);
+        } else {
+          showAlert(data.error || 'Password reset failed.');
+        }
+      } catch (err) {
+        showAlert('Network error: ' + err.message);
+      }
+    }
+
+    // Handle Login Submit
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      hideAlert();
+
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const spinner = document.getElementById('login-spinner');
+      const btn = document.getElementById('btn-submit-login');
+
+      spinner.style.display = 'inline-block';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert('Authentication successful! Redirecting...', true);
+          setTimeout(() => {
+            window.location.href = data.redirect || '/';
+          }, 600);
+        } else {
+          showAlert(data.error || 'Invalid credentials.');
+        }
+      } catch (err) {
+        showAlert('Connection error: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
+        btn.disabled = false;
+      }
+    });
+
+    // Handle Registration Submit
+    document.getElementById('register-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      hideAlert();
+
+      const name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const spinner = document.getElementById('reg-spinner');
+      const btn = document.getElementById('btn-submit-reg');
+
+      spinner.style.display = 'inline-block';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, password: password, full_name: name })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert('Account created! Welcome to SENTRY.', true);
+          setTimeout(() => {
+            window.location.href = data.redirect || '/';
+          }, 600);
+        } else {
+          showAlert(data.error || 'Registration failed.');
+        }
+      } catch (err) {
+        showAlert('Connection error: ' + err.message);
+      } finally {
+        spinner.style.display = 'none';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
